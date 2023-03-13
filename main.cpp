@@ -3,6 +3,7 @@ using namespace yarp::os;
 
 #include "eros.h"
 #include "affine.h"
+#include "ROScommunication.h"
 
 class affineTracking: public yarp::os::RFModule
 {
@@ -11,13 +12,14 @@ private:
     cv::Size img_size;
     double period{0.01};
     double eros_k, eros_d;
-    double translation{10}, angle{1.0}, pscale{1.005}, nscale{0.995}, scaling{0.01};
+    double translation{25}, angle{1.0}, pscale{1.005}, nscale{0.995}, scaling{0.01};
     bool run{false};
     double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
     std::string filename; 
 
     EROSfromYARP eros_handler;
     affineTransforms affine_handler;
+    YarpToRos ros_publish;
     std::thread computation_thread;
 
 public:
@@ -29,7 +31,7 @@ public:
         eros_k = rf.check("eros_k", Value(17)).asInt32();
         eros_d = rf.check("eros_d", Value(0.3)).asFloat64();
         period = rf.check("period", Value(0.01)).asFloat64();
-        filename = rf.check("file", Value("/usr/local/src/affine_2d_tracking/star-removebg-preview.png")).asString(); 
+        filename = rf.check("file", Value("/usr/local/src/affine2dtracking/star-removebg-preview.png")).asString(); 
 
         // module name
         setName((rf.check("name", Value("/shape-position")).asString()).c_str());
@@ -68,6 +70,7 @@ public:
         affine_handler.create_maps(); 
 
         // yInfo()<<"maps created";
+        ros_publish.initPublisher(); 
 
         computation_thread = std::thread([this]{tracking_loop();});
 
@@ -90,7 +93,7 @@ public:
             imshow("EROS ROI", affine_handler.eros_tracked);
             // cv::circle(eros_handler.eros.getSurface(), affine_handler.new_position, 2, 255, -1);
             // cv::rectangle(eros_handler.eros.getSurface(), affine_handler.roi_around_shape, 255,1,8,0);
-            imshow("EROS FULL", eros_handler.eros.getSurface()+affine_handler.rot_scaled_tr_template);
+            imshow("EROS FULL", affine_handler.eros_filtered+affine_handler.rot_scaled_tr_template);
         }
         else{
             // cv::rectangle(eros_handler.eros.getSurface(), affine_handler.square, 255, 1, 8,0);
@@ -143,6 +146,8 @@ public:
                 affine_handler.updateState();
                 // yInfo()<<"state";
 
+                ros_publish.publishTargetPos(img_size, affine_handler.initial_position.x+affine_handler.state[0], affine_handler.initial_position.y+affine_handler.state[1], affine_handler.state[2], affine_handler.initial_position.x+affine_handler.state[3]); 
+
                 this->dt_warpings = toc_warpings - tic_warpings;
                 this->dt_comparison = toc_comparison - tic_comparison;
                 this->dt_eros = toc_eros - tic_eros;
@@ -181,7 +186,7 @@ int main(int argc, char *argv[]) {
     /* prepare and configure the resource finder */
     yarp::os::ResourceFinder rf;
     rf.setDefaultContext("event-driven");
-    rf.setDefaultConfigFile("/usr/local/src/affine_2d_tracking/config.ini");
+    rf.setDefaultConfigFile("/usr/local/src/affine2dtracking/config.ini");
     rf.setVerbose(false);
     rf.configure(argc, argv);
 
