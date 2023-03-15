@@ -13,13 +13,21 @@ public:
     ev::window<ev::AE> input_port;
     ev::EROS eros;
     std::thread eros_worker;
+    cv::Rect eros_update_roi;
+
+    void setEROSupdateROI(cv::Rect roi) {
+        this -> eros_update_roi = roi;
+    }
 
     void erosUpdate() 
     {
         while (!input_port.isStopping()) {
             ev::info my_info = input_port.readAll(true);
-            for(auto &v : input_port)
-                eros.update(v.x, v.y);
+            for(auto &v : input_port){
+                if((v.x) > eros_update_roi.x && (v.x) < eros_update_roi.x + eros_update_roi.width && (v.y) > eros_update_roi.y && (v.y) < eros_update_roi.y + eros_update_roi.height)
+                    eros.update(v.x, v.y);
+            }
+
         }
     }
 

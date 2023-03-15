@@ -12,7 +12,7 @@ private:
     cv::Size img_size;
     double period{0.01};
     double eros_k, eros_d;
-    double translation{0.5}, angle{0.05}, pscale{1.00001}, nscale{0.99991}, scaling{0.01};
+    double translation{3}, angle{0.05}, pscale{1.00001}, nscale{0.99991}, scaling{0.01};
     bool run{false};
     double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
     std::string filename; 
@@ -56,6 +56,8 @@ public:
             return false;
         }
         yInfo()<<"eros started"; 
+
+        eros_handler.setEROSupdateROI(cv::Rect(0,0,640,480));
 
         affine_handler.init(translation, angle, pscale, nscale, scaling);
         affine_handler.initState();
@@ -148,6 +150,8 @@ public:
                 // yInfo()<<"comp";
                 affine_handler.updateState();
                 // yInfo()<<"state";
+                
+                eros_handler.setEROSupdateROI(affine_handler.roi_around_shape);
 
                 ros_publish.publishTargetPos(img_size, affine_handler.initial_position.x+affine_handler.state[0], affine_handler.initial_position.y+affine_handler.state[1], affine_handler.state[2], affine_handler.state[3]); 
 
