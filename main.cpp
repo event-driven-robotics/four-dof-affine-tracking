@@ -12,7 +12,7 @@ private:
     cv::Size img_size;
     double period{0.01};
     double eros_k, eros_d;
-    double translation{25}, angle{1.0}, pscale{1.005}, nscale{0.995}, scaling{0.01};
+    double translation{0.5}, angle{0.05}, pscale{1.00001}, nscale{0.99991}, scaling{0.01};
     bool run{false};
     double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
     std::string filename; 
@@ -31,7 +31,7 @@ public:
         eros_k = rf.check("eros_k", Value(17)).asInt32();
         eros_d = rf.check("eros_d", Value(0.3)).asFloat64();
         period = rf.check("period", Value(0.01)).asFloat64();
-        filename = rf.check("file", Value("/usr/local/src/affine2dtracking/star-removebg-preview.png")).asString(); 
+        filename = rf.check("file", Value("/usr/local/src/affine2dtracking/thin_star.png")).asString(); 
 
         // module name
         setName((rf.check("name", Value("/shape-position")).asString()).c_str());
@@ -58,6 +58,7 @@ public:
         yInfo()<<"eros started"; 
 
         affine_handler.init(translation, angle, pscale, nscale, scaling);
+        affine_handler.initState();
 
         affine_handler.loadTemplate(img_size, filename);
         // affine_handler.createStaticTemplate(img_size, 30);
@@ -88,7 +89,7 @@ public:
         cv::Mat norm_mexican;
         if (run){
             cv::normalize(affine_handler.mexican_template_64f, norm_mexican, 1, 0, cv::NORM_MINMAX);
-            imshow("MEXICAN ROI", affine_handler.mexican_template_64f+0.5);
+            imshow("MEXICAN ROI", affine_handler.mexican_template_64f);
             imshow("TEMPLATE ROI", affine_handler.roi_template);
             imshow("EROS ROI", affine_handler.eros_tracked);
             // cv::circle(eros_handler.eros.getSurface(), affine_handler.new_position, 2, 255, -1);
@@ -102,6 +103,8 @@ public:
 
         int c = cv::waitKey(1);
 
+        if (c == 32)
+            affine_handler.initState();
         if (c == 'g')
             run = true;
 
@@ -112,7 +115,7 @@ public:
         //     toc_count = dt = 0;
 
         // }
-        yInfo() << dt_warpings<<dt_comparison<<dt_eros; 
+        // yInfo() << dt_warpings<<dt_comparison<<dt_eros; 
 
         return true;
     }
@@ -130,28 +133,28 @@ public:
                 // yInfo()<<"update affine";
                 affine_handler.make_template();
                 // yInfo()<<"mexican";
-                double tic_warpings = Time::now();
+                // double tic_warpings = Time::now();
                 affine_handler.createWarpings();
-                double toc_warpings = Time::now();
+                // double toc_warpings = Time::now();
                 // affine_handler.createMapWarpings(); 
                 // yInfo()<<"remap";
-                double tic_eros = Time::now();
+                // double tic_eros = Time::now();
                 affine_handler.setEROS(eros_handler.eros.getSurface());
-                double toc_eros= Time::now();
+                // double toc_eros= Time::now();
                 // yInfo()<<"eros";
-                double tic_comparison = Time::now();
+                // double tic_comparison = Time::now();
                 affine_handler.performComparisons();
-                double toc_comparison= Time::now();
+                // double toc_comparison= Time::now();
                 // yInfo()<<"comp";
                 affine_handler.updateState();
                 // yInfo()<<"state";
 
-                ros_publish.publishTargetPos(img_size, affine_handler.initial_position.x+affine_handler.state[0], affine_handler.initial_position.y+affine_handler.state[1], affine_handler.state[2], affine_handler.initial_position.x+affine_handler.state[3]); 
+                ros_publish.publishTargetPos(img_size, affine_handler.initial_position.x+affine_handler.state[0], affine_handler.initial_position.y+affine_handler.state[1], affine_handler.state[2], affine_handler.state[3]); 
 
-                this->dt_warpings = toc_warpings - tic_warpings;
-                this->dt_comparison = toc_comparison - tic_comparison;
-                this->dt_eros = toc_eros - tic_eros;
-                this->toc_count++;
+                // this->dt_warpings = toc_warpings - tic_warpings;
+                // this->dt_comparison = toc_comparison - tic_comparison;
+                // this->dt_eros = toc_eros - tic_eros;
+                // this->toc_count++;
 
                 // yInfo()<<"running";
 

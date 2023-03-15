@@ -34,7 +34,7 @@ public:
     double translation, angle, pscale, nscale, scaling;
     cv::Point initial_position, new_position;
     cv::Point2d new_center; 
-    int blur{31};
+    int blur{11};
 
     cv::Size proc_size{cv::Size(100, 100)};
     cv::Rect proc_roi; 
@@ -59,13 +59,15 @@ public:
         nrmx = cv::Mat::zeros(proc_size, CV_32F);
         nrmy = cv::Mat::zeros(proc_size, CV_32F);
 
-        state[0]=0; state[1]=0; state[2]=0; state[3]=1;
-
         this->translation = trans;
         this->angle = rot;
         this->pscale = ps;
         this->nscale = ns;
         this->scaling = sc;
+    }
+
+    void initState(){
+        state[0]=0; state[1]=0; state[2]=0; state[3]=1;
     }
 
     void createAffines(double translation, cv::Point2f center, double angle, double pscale, double nscale){
@@ -163,7 +165,16 @@ public:
 
         cv::Mat shape_image = cv::imread(filename, 0);
 
-        cv::resize(shape_image, shape_image, cv::Size(0.5*shape_image.cols, 0.5*shape_image.rows), 0, 0,  cv::INTER_LINEAR); 
+        cv::resize(shape_image, shape_image, cv::Size(0.33*shape_image.cols, 0.33*shape_image.rows), 0, 0,  cv::INTER_LINEAR); 
+
+        static cv::Mat shape_blur;
+        cv::GaussianBlur(shape_image, shape_blur, cv::Size(3,3),0,0);
+
+        // cv::Mat sobelxy;
+        // cv::Sobel(shape_blur, sobelxy, CV_64F, 1, 1, 5);
+
+        // static cv::Mat edges;
+        // cv::Canny(shape_blur, edges, 100, 200, 3, false);
 
         initial_template = cv::Mat::zeros(res.height, res.width, CV_8UC1);
 
@@ -185,6 +196,16 @@ public:
         initial_position.y = square.y + square.height/2;
     }
 
+    // void createDynamicTemplate(){
+
+    //     cv::Mat rotMatfunc = getRotationMatrix2D(initial_position, state[2], state[3]);
+    //     rotMatfunc.at<double>(0, 2) += (state[0] - initial_position.x);
+    //     rotMatfunc.at<double>(1, 2) += (state[1] - initial_position.y);
+    //     cv::warpAffine(initial_template, rot_scaled_tr_template, rotMatfunc, rot_scaled_tr_template.size());
+    //     new_position = cv::Point2d(initial_position.x+state[0],initial_position.y+state[1]);
+
+    // }
+
     void createDynamicTemplate(){
 
         cv::Mat rot_scaled_template;
@@ -198,7 +219,8 @@ public:
     }
 
     void make_template() {
-        static cv::Mat  pos_hat, neg_hat;
+        
+        static cv::Mat canny_img, f, pos_hat, neg_hat;
         static cv::Size pblur(blur, blur);
         static cv::Size nblur(2*blur-1, 2*blur-1);
         static double minval, maxval;
@@ -238,10 +260,12 @@ public:
 
     void setEROS(const cv::Mat &eros)
     {
-        cv::GaussianBlur(eros, eros_filtered, cv::Size(5, 5), 0);
+        // cv::GaussianBlur(eros, eros_filtered, cv::Size(5, 5), 0);
+        // cv::Mat eros_blurred1; 
+        // cv::medianBlur(eros, eros_blurred1, 3);
+        cv::GaussianBlur(eros, eros_filtered, cv::Size(3, 3), 0);
         eros_filtered(roi_around_shape).copyTo(eros_tracked);
-        eros_tracked.convertTo(eros_tracked_64f, CV_64F);
-
+        eros_tracked.convertTo(eros_tracked_64f, CV_64F, 0.003921569);
         // cv::resize(eros_tracked_64f, eros_resized, proc_roi.size(), 0, 0, cv::INTER_CUBIC);
     }
 
@@ -264,9 +288,9 @@ public:
     void updateState(){
 
         int best_score_index = max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
-        double best_score = *max_element(scores_vector.begin(), scores_vector.end());
-        yInfo() << scores_vector;
-        yInfo() << "highest score =" << best_score_index << best_score;
+        // double best_score = *max_element(scores_vector.begin(), scores_vector.end());
+        // yInfo() << scores_vector;
+        // yInfo() << "highest score =" << best_score_index << best_score;
         scores_vector.clear();
 
         if (best_score_index == 0)
