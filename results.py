@@ -21,7 +21,7 @@ matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 plt.style.use(params)
 
-exp1_path = "results_16-03/exp1"
+exp1_path = "combined_results/exp1"
 exp1_files = sorted([file for file in os.listdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), exp1_path)) if file.endswith('.txt')])
 exp1_data_list = []
 
@@ -41,21 +41,21 @@ fig_error_time, ax_error_time = plt.subplots(4, 6)
 
 for idx, x in enumerate(exp1_data_list):
     
-    if (idx>=0 and idx<3):
+    if (idx>=0 and idx<6):
         mean_rot_errors.append(np.mean(abs(exp1_data_list[idx][:, 5])))
         ax_error_time[0, idx].plot(exp1_data_list[idx][:, 0], exp1_data_list[idx][:, 5])
 
-    if (idx>=3 and idx<7):
+    if (idx>=6 and idx<12):
         mean_scale_errors.append(np.mean(abs(exp1_data_list[idx][:, 6]-1)))
-        ax_error_time[1, idx-3].plot(exp1_data_list[idx][:, 0], exp1_data_list[idx][:, 6]-1)
+        ax_error_time[1, idx-6].plot(exp1_data_list[idx][:, 0], exp1_data_list[idx][:, 6]-1)
 
-    if (idx>=7 and idx<13):
+    if (idx>=12 and idx<18):
         mean_trans_x_errors.append(np.mean(abs(exp1_data_list[idx][:, 3]-320)))
-        ax_error_time[2, idx-7].plot(exp1_data_list[idx][:, 0], exp1_data_list[idx][:, 3]-320)
+        ax_error_time[2, idx-18].plot(exp1_data_list[idx][:, 0], exp1_data_list[idx][:, 3]-320)
 
-    if (idx>=13 and idx<19):
+    if (idx>=18 and idx<24):
         mean_trans_y_errors.append(np.mean(abs(exp1_data_list[idx][:, 4]-240)))
-        ax_error_time[3, idx-13].plot(exp1_data_list[idx][:, 0], exp1_data_list[idx][:, 4]-240)
+        ax_error_time[3, idx-24].plot(exp1_data_list[idx][:, 0], exp1_data_list[idx][:, 4]-240)
 
 plt.setp(ax_error_time[-1, :], xlabel='Time [s]')
 plt.setp(ax_error_time[0, 0], ylabel='theta \n [deg]')
@@ -63,8 +63,8 @@ plt.setp(ax_error_time[1, 0], ylabel='s')
 plt.setp(ax_error_time[2,0], ylabel='x \n [pix]')
 plt.setp(ax_error_time[3,0], ylabel='y \n [pix]')
 
-rot_speeds=["10", "30", "45"]
-scale_speeds=["5", "7", "10", "12"]
+rot_speeds=["100","150", "175", "200", "225", "250"]
+scale_speeds=["30", "40", "50", "60", "70", "80"]
 trans_x_speeds=["240", "480", "720", "960", "1200", "1440"]
 trans_y_speeds=["135", "270", "405", "540", "675", "810"]
 
@@ -109,7 +109,7 @@ ax.yaxis.grid(True)
 
 # plt.show()
 
-exp2_path = "results_16-03/exp2"
+exp2_path = "combined_results/exp2"
 exp2_files = sorted([file for file in os.listdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), exp2_path)) if file.endswith('.txt')])
 exp2_data_list = []
 
@@ -126,6 +126,8 @@ latency_25_mean_error = []
 latency_30_mean_error = []
 latency_35_mean_error = []
 latency_40_mean_error = []
+latency_45_mean_error = []
+latency_50_mean_error = []
 
 fig_error_time_latency_0, ax_error_time_latency_0 = plt.subplots(4,1)
 fig_error_time_latency_5, ax_error_time_latency_5 = plt.subplots(4,1)
@@ -136,6 +138,8 @@ fig_error_time_latency_25, ax_error_time_latency_25 = plt.subplots(4,1)
 fig_error_time_latency_30, ax_error_time_latency_30 = plt.subplots(4,1)
 fig_error_time_latency_35, ax_error_time_latency_35 = plt.subplots(4,1)
 fig_error_time_latency_40, ax_error_time_latency_40 = plt.subplots(4,1)
+fig_error_time_latency_45, ax_error_time_latency_45 = plt.subplots(4,1)
+fig_error_time_latency_50, ax_error_time_latency_50 = plt.subplots(4,1)
 
 for idx, x in enumerate(exp2_data_list):
     
@@ -211,19 +215,35 @@ for idx, x in enumerate(exp2_data_list):
         ax_error_time_latency_40[idx-32].legend(loc="upper right")
         ax_error_time_latency_40[idx-32].set_title("Latency = 40 ms")
 
+    if (idx>=36 and idx<40):
+        latency_45_mean_error.append(np.mean(abs(exp2_data_list[idx][:, 3]-320)))
+        ax_error_time_latency_45[idx-36].plot(exp2_data_list[idx][:, 0], exp2_data_list[idx][:, 3]-320, label="speed #"+str(idx+1-36))
+        plt.setp(ax_error_time_latency_45[-1], xlabel='Time [s]')
+        plt.setp(ax_error_time_latency_45[:], ylabel='Error [pix]')
+        ax_error_time_latency_45[idx-36].legend(loc="upper right")
+        ax_error_time_latency_45[idx-36].set_title("Latency = 45 ms")
+
+    if (idx>=40 and idx<44):
+        latency_50_mean_error.append(np.mean(abs(exp2_data_list[idx][:, 3]-320)))
+        ax_error_time_latency_50[idx-40].plot(exp2_data_list[idx][:, 0], exp2_data_list[idx][:, 3]-320, label="speed #"+str(idx+1-40))
+        plt.setp(ax_error_time_latency_50[-1], xlabel='Time [s]')
+        plt.setp(ax_error_time_latency_50[:], ylabel='Error [pix]')
+        ax_error_time_latency_50[idx-40].legend(loc="upper right")
+        ax_error_time_latency_50[idx-40].set_title("Latency = 50 ms")
+
 plt.legend()
 
-latency_array = [0,5,10,15,20,25,30,35,40]
+latency_array = [0,5,10,15,20,25,30,35,40,45,50]
 speed_array = [240,480,720,960]
 
 speed = 0
-speed_240 = [latency_0_mean_error[speed], latency_5_mean_error[speed], latency_10_mean_error[speed], latency_15_mean_error[speed], latency_20_mean_error[speed], latency_25_mean_error[speed], latency_30_mean_error[speed], latency_35_mean_error[speed], latency_40_mean_error[speed]]
+speed_240 = [latency_0_mean_error[speed], latency_5_mean_error[speed], latency_10_mean_error[speed], latency_15_mean_error[speed], latency_20_mean_error[speed], latency_25_mean_error[speed], latency_30_mean_error[speed], latency_35_mean_error[speed], latency_40_mean_error[speed], latency_45_mean_error[speed], latency_50_mean_error[speed]]
 speed = 1
-speed_480 = [latency_0_mean_error[speed], latency_5_mean_error[speed], latency_10_mean_error[speed], latency_15_mean_error[speed], latency_20_mean_error[speed], latency_25_mean_error[speed], latency_30_mean_error[speed], latency_35_mean_error[speed], latency_40_mean_error[speed]]
+speed_480 = [latency_0_mean_error[speed], latency_5_mean_error[speed], latency_10_mean_error[speed], latency_15_mean_error[speed], latency_20_mean_error[speed], latency_25_mean_error[speed], latency_30_mean_error[speed], latency_35_mean_error[speed], latency_40_mean_error[speed], latency_45_mean_error[speed], latency_50_mean_error[speed]]
 speed = 2
-speed_720 = [latency_0_mean_error[speed], latency_5_mean_error[speed], latency_10_mean_error[speed], latency_15_mean_error[speed], latency_20_mean_error[speed], latency_25_mean_error[speed], latency_30_mean_error[speed], latency_35_mean_error[speed], latency_40_mean_error[speed]]
+speed_720 = [latency_0_mean_error[speed], latency_5_mean_error[speed], latency_10_mean_error[speed], latency_15_mean_error[speed], latency_20_mean_error[speed], latency_25_mean_error[speed], latency_30_mean_error[speed], latency_35_mean_error[speed], latency_40_mean_error[speed], latency_45_mean_error[speed], latency_50_mean_error[speed]]
 speed = 3
-speed_960 = [latency_0_mean_error[speed], latency_5_mean_error[speed], latency_10_mean_error[speed], latency_15_mean_error[speed], latency_20_mean_error[speed], latency_25_mean_error[speed], latency_30_mean_error[speed], latency_35_mean_error[speed], latency_40_mean_error[speed]]
+speed_960 = [latency_0_mean_error[speed], latency_5_mean_error[speed], latency_10_mean_error[speed], latency_15_mean_error[speed], latency_20_mean_error[speed], latency_25_mean_error[speed], latency_30_mean_error[speed], latency_35_mean_error[speed], latency_40_mean_error[speed], latency_45_mean_error[speed], latency_50_mean_error[speed]]
 
 
 fig_lat = plt.figure()
