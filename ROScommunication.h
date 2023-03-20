@@ -46,24 +46,34 @@ public:
        }
 
         /* subscribe to topic chatter */
-        // if (!publisher.topic("/catcher/event/object_position")) {
+        // if (!publisher.topic("/star_position")) {
         //     yCError(TALKER) << "Failed to create publisher to /catcher/event/object_position";
         // }
     }
 
     void publishTargetPos(cv::Size resolution, int u, int v, double theta, double sc){
 
-        double u_ref = resolution.width;
-        double v_ref = resolution.height;
+        double u_ref = resolution.width/2;
+        double v_ref = resolution.height/2;
         double theta_ref = 0;
         double sc_ref = 1; 
 
+        // data.position.x = u-u_ref;
+        // data.position.y = v-v_ref;
+        // data.position.z = sc- sc_ref;
+        // data.orientation.x = theta -theta_ref; 
+        // yInfo()<<u-u_ref<<v-v_ref<< theta-theta_ref<<sc-sc_ref;
         d.content.push_back(u-u_ref);
         d.content.push_back(v-v_ref);
         d.content.push_back(theta-theta_ref);
         d.content.push_back(sc-sc_ref);
+        // yInfo()<<d.content;
+        // std::cout<<std::endl; 
+        // std::cout<<std::endl; 
 
         port.write(d);
+
+        d.content.clear();
 
         /* publish it to the topic */
         // publisher.write(data);
