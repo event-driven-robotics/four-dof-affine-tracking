@@ -27,7 +27,7 @@ public:
     std::vector<double> scores_vector;
     std::array<double, 4> state;
 
-    cv::Rect roi_around_shape, square;
+    cv::Rect2d roi_around_shape, square;
     cv::Mat initial_template, roi_template, roi_template_64f, roi_resized, mexican_template, mexican_template_64f;
     cv::Mat eros_filtered, eros_tracked, eros_tracked_64f, eros_resized;
     cv::Mat rot_scaled_tr_template;
@@ -35,6 +35,8 @@ public:
     cv::Point initial_position, new_position;
     cv::Point2d new_center; 
     int blur{11};
+    int gaussian_blur_eros{5}; 
+    double template_scale{0.32}; //0.4
 
     cv::Size proc_size{cv::Size(100, 100)};
     cv::Rect proc_roi; 
@@ -113,9 +115,9 @@ public:
         affine_info[7].A = cv::getRotationMatrix2D(new_center, 0, nscale);
     }
 
-    void setROI(int buffer = 20){
+    void setROI(int buffer = 10){
 
-        static cv::Rect full_roi = cv::Rect(cv::Point(0, 0), rot_scaled_tr_template.size());
+        static cv::Rect2d full_roi = cv::Rect2d(cv::Point(0, 0), rot_scaled_tr_template.size());
 
         roi_around_shape = cv::boundingRect(rot_scaled_tr_template);
 
@@ -165,10 +167,10 @@ public:
 
         cv::Mat shape_image = cv::imread(filename, 0);
 
-        cv::resize(shape_image, shape_image, cv::Size(0.33*shape_image.cols, 0.33*shape_image.rows), 0, 0,  cv::INTER_LINEAR); 
+        cv::resize(shape_image, shape_image, cv::Size(template_scale*shape_image.cols, template_scale*shape_image.rows), 0, 0,  cv::INTER_LINEAR); 
 
-        static cv::Mat shape_blur;
-        cv::GaussianBlur(shape_image, shape_blur, cv::Size(3,3),0,0);
+        // static cv::Mat shape_blur;
+        // cv::GaussianBlur(shape_image, shape_blur, cv::Size(3,3),0,0);
 
         // cv::Mat sobelxy;
         // cv::Sobel(shape_blur, sobelxy, CV_64F, 1, 1, 5);
@@ -263,7 +265,7 @@ public:
         // cv::GaussianBlur(eros, eros_filtered, cv::Size(5, 5), 0);
         // cv::Mat eros_blurred1; 
         // cv::medianBlur(eros, eros_blurred1, 3);
-        cv::GaussianBlur(eros, eros_filtered, cv::Size(3, 3), 0);
+        cv::GaussianBlur(eros, eros_filtered, cv::Size(gaussian_blur_eros, gaussian_blur_eros), 0);
         eros_filtered(roi_around_shape).copyTo(eros_tracked);
         eros_tracked.convertTo(eros_tracked_64f, CV_64F, 0.003921569);
         // cv::resize(eros_tracked_64f, eros_resized, proc_roi.size(), 0, 0, cv::INTER_CUBIC);
@@ -309,6 +311,25 @@ public:
             state[3] = state[3]*pscale;
         else if (best_score_index == 7)
             state[3] = state[3]*nscale;
+    }
+
+    void updateStateAll(){
+
+        //int best_score_index = max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
+        // double best_score = *max_element(scores_vector.begin(), scores_vector.end());
+        // yInfo() << scores_vector;
+        // yInfo() << "highest score =" << best_score_index << best_score;
+        double no_motion = scores_vector[8];
+        if(scores_vector[0] > no_motion) state[0] += translation;
+        if(scores_vector[1] > no_motion) state[0] -= translation;
+        if(scores_vector[2] > no_motion) state[1] += translation;
+        if(scores_vector[3] > no_motion) state[1] -= translation;
+        if(scores_vector[4] > no_motion) state[2] += angle;
+        if(scores_vector[5] > no_motion) state[2] -= angle;
+        if(scores_vector[6] > no_motion) state[3]*= pscale;
+        if(scores_vector[7] > no_motion) state[3]*= nscale;
+
+        scores_vector.clear();
     }
 
     void create_map_x(double dp, int affine_n){

@@ -14,6 +14,10 @@ public:
     ev::EROS eros;
     std::thread eros_worker;
     cv::Rect eros_update_roi;
+    double dt_not_read_events{0};
+    double tic{-1};
+    double dur{0};
+    int packet_events{0};
 
     void setEROSupdateROI(cv::Rect roi) {
         this -> eros_update_roi = roi;
@@ -23,10 +27,16 @@ public:
     {
         while (!input_port.isStopping()) {
             ev::info my_info = input_port.readAll(true);
+            tic = my_info.timestamp;
+            dur = my_info.duration; 
+            packet_events = my_info.count; 
+
             for(auto &v : input_port){
                 if((v.x) > eros_update_roi.x && (v.x) < eros_update_roi.x + eros_update_roi.width && (v.y) > eros_update_roi.y && (v.y) < eros_update_roi.y + eros_update_roi.height)
                     eros.update(v.x, v.y);
             }
+
+            dt_not_read_events = input_port.stats_unprocessed().duration;
 
         }
     }

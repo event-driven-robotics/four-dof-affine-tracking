@@ -14,7 +14,7 @@ private:
     double eros_k, eros_d;
     double tau_latency{0};
     double recording_duration, elapsed_time{0}; 
-    double translation{3.0}, angle{1.0}, pscale{1.005}, nscale{0.995}, scaling{0.01};
+    double translation{1.0}, angle{0.5}, pscale{1.01}, nscale{0.99}, scaling{0.01};
     bool run{false};
     double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
     std::string filename; 
@@ -39,11 +39,11 @@ public:
     {
         // options and parameters
     
-        eros_k = rf.check("eros_k", Value(17)).asInt32();
-        eros_d = rf.check("eros_d", Value(0.3)).asFloat64();
+        eros_k = rf.check("eros_k", Value(9)).asInt32();
+        eros_d = rf.check("eros_d", Value(0.5)).asFloat64();
         period = rf.check("period", Value(0.01)).asFloat64();
         tau_latency=rf.check("tau", Value(0.0)).asFloat64();
-        recording_duration = rf.check("rec_time", Value(10)).asFloat64();
+        recording_duration = rf.check("rec_time", Value(10000)).asFloat64();
         filename = rf.check("shape-file", Value("/usr/local/src/affine2dtracking/shapes/thin_star.png")).asString(); 
 
         // module name
@@ -80,7 +80,7 @@ public:
             }
         }
 
-        // eros_handler.setEROSupdateROI(cv::Rect(0,0,640,480));
+        eros_handler.setEROSupdateROI(cv::Rect(0,0,640,480));
 
         affine_handler.init(translation, angle, pscale, nscale, scaling);
         affine_handler.initState();
@@ -127,10 +127,10 @@ public:
             // imshow("overlap", intersection_mat);
             // imshow("total", union_mat);
 
-            // cv::normalize(affine_handler.mexican_template_64f, norm_mexican, 1, 0, cv::NORM_MINMAX);
-            // imshow("MEXICAN ROI", affine_handler.mexican_template_64f);
-            // imshow("TEMPLATE ROI", affine_handler.roi_template);
-            // imshow("EROS ROI", affine_handler.eros_tracked);
+            //cv::normalize(affine_handler.mexican_template_64f, norm_mexican, 1, 0, cv::NORM_MINMAX);
+            imshow("MEXICAN ROI", affine_handler.mexican_template_64f+0.5);
+            imshow("TEMPLATE ROI", affine_handler.roi_template);
+            imshow("EROS ROI", affine_handler.eros_tracked);
             // cv::circle(eros_handler.eros.getSurface(), affine_handler.new_position, 2, 255, -1);
             // cv::rectangle(eros_handler.eros.getSurface(), affine_handler.roi_around_shape, 255,1,8,0);
             imshow("EROS FULL", affine_handler.eros_filtered+affine_handler.rot_scaled_tr_template);
@@ -195,9 +195,9 @@ public:
                 affine_handler.performComparisons();
                 // double toc_comparison= Time::now();
                 // yInfo()<<"comp";
-                affine_handler.updateState();
+                affine_handler.updateStateAll();
                 // yInfo()<<"state";                
-                // eros_handler.setEROSupdateROI(affine_handler.roi_around_shape);
+                eros_handler.setEROSupdateROI(affine_handler.roi_around_shape);
                 double eros_time_after = eros_handler.tic;
                 double eros_diff_time = eros_time_after-eros_time_before;
 
