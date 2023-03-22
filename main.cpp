@@ -14,7 +14,7 @@ private:
     double eros_k, eros_d;
     double tau_latency{0};
     double recording_duration, elapsed_time{0}; 
-    double translation{1.0}, angle{0.5}, pscale{1.01}, nscale{0.99}, scaling{0.01};
+    double translation{2.0}, angle{0.8}, pscale{1.05}, nscale{0.95}, scaling{0.01};
     bool run{false};
     double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
     std::string filename; 
@@ -128,8 +128,8 @@ public:
             // imshow("total", union_mat);
 
             //cv::normalize(affine_handler.mexican_template_64f, norm_mexican, 1, 0, cv::NORM_MINMAX);
-            imshow("MEXICAN ROI", affine_handler.mexican_template_64f+0.5);
-            imshow("TEMPLATE ROI", affine_handler.roi_template);
+            //imshow("MEXICAN ROI", affine_handler.mexican_template_64f+0.5);
+            //imshow("TEMPLATE ROI", affine_handler.roi_template);
             imshow("EROS ROI", affine_handler.eros_tracked);
             // cv::circle(eros_handler.eros.getSurface(), affine_handler.new_position, 2, 255, -1);
             // cv::rectangle(eros_handler.eros.getSurface(), affine_handler.roi_around_shape, 255,1,8,0);
