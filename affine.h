@@ -34,15 +34,14 @@ public:
     double translation, angle, pscale, nscale;
     cv::Point initial_position, new_position;
     cv::Point2d new_center; 
-    int blur{9};
+    int blur{7};
     int gaussian_blur_eros{5}; 
-    double template_scale{0.32}; //0.4
+    double template_scale{0.4}; //0.4
 
-    cv::Size proc_size{cv::Size(100, 100)};
+    cv::Size proc_size{cv::Size(50, 50)};
     cv::Rect proc_roi, o_proc_roi; 
     cv::Mat prmx, prmy, nrmx, nrmy;
-
-
+    
     std::array<double, 6> cam;
 
 public:
@@ -117,7 +116,7 @@ public:
         affine_info[7].A = cv::getRotationMatrix2D(new_center, 0, nscale);
     }
 
-    void setROI(int buffer = 20){
+    void setROI(int buffer = 0){
 
         roi_resized = 0; 
         static cv::Rect2d full_roi = cv::Rect2d(cv::Point(0, 0), rot_scaled_tr_template.size());
@@ -198,16 +197,16 @@ public:
 
         cv::Mat shape_image = cv::imread(filename, 0);
 
-        cv::resize(shape_image, shape_image, cv::Size(template_scale*shape_image.cols, template_scale*shape_image.rows), 0, 0,  cv::INTER_LINEAR); 
+        cv::resize(shape_image, shape_image, cv::Size(template_scale*shape_image.cols, template_scale*shape_image.rows), 0, 0,  cv::INTER_CUBIC); 
 
-        // static cv::Mat shape_blur;
-        // cv::GaussianBlur(shape_image, shape_blur, cv::Size(3,3),0,0);
+        static cv::Mat shape_blur;
+        cv::GaussianBlur(shape_image, shape_blur, cv::Size(3,3),0,0);
 
         // cv::Mat sobelxy;
         // cv::Sobel(shape_blur, sobelxy, CV_64F, 1, 1, 5);
 
-        // static cv::Mat edges;
-        // cv::Canny(shape_blur, edges, 100, 200, 3, false);
+        static cv::Mat edges;
+        cv::Canny(shape_blur, edges, 120, 120*3, 3, false);
 
         initial_template = cv::Mat::zeros(res.height, res.width, CV_8UC1);
 
@@ -216,7 +215,7 @@ public:
 
         cv::Rect mask = cv::Rect(res.width/2 - shape_image.cols/2, res.height/2 - shape_image.rows/2, shape_image.cols, shape_image.rows); 
 
-        shape_image.copyTo(initial_template(mask)); 
+        edges.copyTo(initial_template(mask)); 
 
     }
 
@@ -232,14 +231,17 @@ public:
 
     void createDynamicTemplate(){
 
-        cv::Mat rot_scaled_template;
+        // cv::Mat rot_scaled_template;
 
-        rot_scaled_tr_template = 0; 
+        // rot_scaled_tr_template = 0; 
 
         cv::Mat rotMatfunc = getRotationMatrix2D(initial_position, state[2], state[3]);
-        cv::warpAffine(initial_template, rot_scaled_template, rotMatfunc, rot_scaled_template.size());
-        cv::Mat trMat =  updateTrMat(state[0], state[1]);
-        cv::warpAffine(rot_scaled_template, rot_scaled_tr_template, trMat, rot_scaled_tr_template.size());
+        // cv::warpAffine(initial_template, rot_scaled_template, rotMatfunc, rot_scaled_template.size());
+        // cv::Mat trMat =  updateTrMat(state[0], state[1]);
+        rotMatfunc.at<double>(0,2) += (state[0]);
+        rotMatfunc.at<double>(1,2) += (state[1]);
+        cv::warpAffine(initial_template, rot_scaled_tr_template, rotMatfunc, initial_template.size());
+        // cv::warpAffine(rot_scaled_template, rot_scaled_tr_template, rotMatfunc, rot_scaled_template.size());
         new_position = cv::Point2d(initial_position.x+state[0],initial_position.y+state[1]);
 
     }
@@ -279,13 +281,13 @@ public:
 
         for (int affine = 0; affine < affine_info.size()-1; affine++) {
             cv::remap(mexican_template_64f, affine_info[affine].warped_img, affine_info[affine].rmp, affine_info[affine].rmsp, cv::INTER_LINEAR);
-            affine_matrices.push_back(affine_info[affine].warped_img);
+            // affine_matrices.push_back(affine_info[affine].warped_img);
             // cv::imshow("affine remap" + std::to_string(affine), affine_info[affine].warped_img); 
         }
 
         affine_info[8].warped_img = mexican_template_64f; 
-        cv::hconcat(affine_matrices, concat_affines);
-        cv::imshow("affine remap", concat_affines);
+        // cv::hconcat(affine_matrices, concat_affines);
+        // cv::imshow("affine remap", concat_affines);
 
         affine_matrices.clear(); 
 
@@ -299,9 +301,9 @@ public:
         // cv::medianBlur(eros, eros_blurred1, 3);
         cv::GaussianBlur(eros, eros_filtered, cv::Size(gaussian_blur_eros, gaussian_blur_eros), 0);
         eros_filtered(roi_around_shape).copyTo(eros_tracked);
-        eros_tracked.convertTo(eros_tracked_64f, CV_64F, 0.003921569);
+        eros_tracked.convertTo(eros_tracked_64f, CV_64F, 0.003921569); //0.003921569
 
-        cv::resize(eros_tracked_64f, eros_resized(o_proc_roi), o_proc_roi.size(), 0, 0, cv::INTER_CUBIC);
+        cv::resize(eros_tracked_64f, eros_resized(o_proc_roi), o_proc_roi.size(), 0, 0, cv::INTER_LINEAR);
     }
 
     double similarity_score(const cv::Mat &observation, const cv::Mat &expectation) {

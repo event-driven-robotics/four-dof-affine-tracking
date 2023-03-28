@@ -128,7 +128,7 @@ public:
                     imshow("EROS RESIZE", affine_handler.eros_resized);
 
                     imshow("EROS FULL", affine_handler.eros_filtered + affine_handler.rot_scaled_tr_template);
-                    cv::waitKey(0);
+                    cv::waitKey(1);
                 }
 
                 // cv::circle(eros_filtered, new_position, 2, 255, -1);

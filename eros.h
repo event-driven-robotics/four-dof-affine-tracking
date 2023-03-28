@@ -19,10 +19,6 @@ public:
     double dur{0};
     int packet_events{0};
 
-    void setEROSupdateROI(cv::Rect roi) {
-        this -> eros_update_roi = roi;
-    }
-
     void erosUpdate() 
     {
         while (!input_port.isStopping()) {

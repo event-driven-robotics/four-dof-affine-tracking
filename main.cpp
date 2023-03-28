@@ -13,8 +13,9 @@ private:
     double period{0.01};
     double eros_k, eros_d;
     double tau_latency{0};
+    double dT{0}; 
     double recording_duration, elapsed_time{0}; 
-    double translation{2.0}, angle{0.8}, pscale{1.05}, nscale{0.95}, scaling{0.01};
+    float translation{1}, angle{0.8}, pscale{1.001}, nscale{0.99};
     bool run{false};
     double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
     std::string filename; 
@@ -44,7 +45,7 @@ public:
         period = rf.check("period", Value(0.01)).asFloat64();
         tau_latency=rf.check("tau", Value(0.0)).asFloat64();
         recording_duration = rf.check("rec_time", Value(10000)).asFloat64();
-        filename = rf.check("shape-file", Value("/usr/local/src/affine2dtracking/shapes/thin_star.png")).asString(); 
+        filename = rf.check("shape-file", Value("/usr/local/src/affine2dtracking/shapes/star.png")).asString(); 
 
         // module name
         setName((rf.check("name", Value("/shape-position")).asString()).c_str());
@@ -80,9 +81,9 @@ public:
             }
         }
 
-        eros_handler.setEROSupdateROI(cv::Rect(0,0,640,480));
+        eros_handler.eros_update_roi=cv::Rect(0,0,640,480);
 
-        affine_handler.init(translation, angle, pscale, nscale, scaling);
+        affine_handler.init(translation, angle, pscale, nscale);
         affine_handler.initState();
 
         affine_handler.loadTemplate(img_size, filename);
@@ -112,8 +113,8 @@ public:
     bool updateModule() {
         cv::Mat norm_mexican;
         if (run){
-            static double start_time = eros_handler.tic; 
-            elapsed_time = eros_handler.tic - start_time;
+            // static double start_time = eros_handler.tic; 
+            // elapsed_time = eros_handler.tic - start_time;
 
             // cv::Mat intersection_mat;
             // cv::bitwise_and(affine_handler.eros_filtered(affine_handler.roi_around_shape), affine_handler.rot_scaled_tr_template(affine_handler.roi_around_shape),intersection_mat);
@@ -130,9 +131,10 @@ public:
             //cv::normalize(affine_handler.mexican_template_64f, norm_mexican, 1, 0, cv::NORM_MINMAX);
             //imshow("MEXICAN ROI", affine_handler.mexican_template_64f+0.5);
             //imshow("TEMPLATE ROI", affine_handler.roi_template);
-            imshow("EROS ROI", affine_handler.eros_tracked);
+            // imshow("EROS ROI", affine_handler.eros_tracked);
             // cv::circle(eros_handler.eros.getSurface(), affine_handler.new_position, 2, 255, -1);
             // cv::rectangle(eros_handler.eros.getSurface(), affine_handler.roi_around_shape, 255,1,8,0);
+            // imshow("EROS RESIZE", affine_handler.eros_resized);
             imshow("EROS FULL", affine_handler.eros_filtered+affine_handler.rot_scaled_tr_template);
         }
         else{
@@ -151,15 +153,17 @@ public:
 
         // if (toc_count){
         //     yInfo()<< (int)toc_count / (period) << "Hz";
-        //     toc_count = dt = 0;
+        //     toc_count = 0;
 
         // }
         // yInfo() << dt_warpings<<dt_comparison<<dt_eros; 
 
-        if(elapsed_time > recording_duration){
-            yInfo()<<"recording duration reached"; 
-            return false; 
-        }
+        // if(elapsed_time > recording_duration){
+        //     yInfo()<<"recording duration reached"; 
+        //     return false; 
+        // }
+
+        // std::cout<<dT<<std::endl; 
 
         return true;
     }
@@ -171,33 +175,17 @@ public:
 
             if (run){
 
-                double dT = yarp::os::Time::now() - tic;
+                dT = yarp::os::Time::now() - tic;
                 tic += dT;
                 affine_handler.createDynamicTemplate();
-                // yInfo()<<"template";
-                affine_handler.setROI();
-                // yInfo()<<"roi";
                 affine_handler.updateAffines();
-                // yInfo()<<"update affine";
-                affine_handler.make_template();
-                // yInfo()<<"mexican";
-                // double tic_warpings = Time::now();
-                affine_handler.createWarpings();
-                // double toc_warpings = Time::now();
-                // affine_handler.createMapWarpings(); 
-                // yInfo()<<"remap";
-                // double tic_eros = Time::now();
+                affine_handler.setROI();
+                affine_handler.createMapWarpings();
                 double eros_time_before = eros_handler.tic;
                 affine_handler.setEROS(eros_handler.eros.getSurface());
-                // double toc_eros= Time::now();
-                // yInfo()<<"eros";
-                // double tic_comparison = Time::now();
                 affine_handler.performComparisons();
-                // double toc_comparison= Time::now();
-                // yInfo()<<"comp";
                 affine_handler.updateStateAll();
-                // yInfo()<<"state";                
-                eros_handler.setEROSupdateROI(affine_handler.roi_around_shape);
+                eros_handler.eros_update_roi = affine_handler.roi_around_shape;
                 double eros_time_after = eros_handler.tic;
                 double eros_diff_time = eros_time_after-eros_time_before;
 
@@ -227,7 +215,7 @@ public:
                 // this->dt_eros = toc_eros - tic_eros;
                 // this->toc_count++;
 
-                // yInfo()<<"running";
+                // yInfo()<<"dt"<<dT;
 
             }
 
