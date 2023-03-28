@@ -28,18 +28,18 @@ public:
     std::array<double, 4> state;
 
     cv::Rect2d roi_around_shape, square;
-    cv::Mat initial_template, roi_template, roi_template_64f, roi_resized, mexican_template, mexican_template_64f;
+    cv::Mat initial_template, roi_template, roi_template_64f, roi_resized, mexican_template, mexican_resized, mexican_template_64f;
     cv::Mat eros_filtered, eros_tracked, eros_tracked_64f, eros_resized;
     cv::Mat rot_scaled_tr_template;
-    double translation, angle, pscale, nscale, scaling;
+    double translation, angle, pscale, nscale;
     cv::Point initial_position, new_position;
     cv::Point2d new_center; 
-    int blur{11};
+    int blur{9};
     int gaussian_blur_eros{5}; 
     double template_scale{0.32}; //0.4
 
     cv::Size proc_size{cv::Size(100, 100)};
-    cv::Rect proc_roi; 
+    cv::Rect proc_roi, o_proc_roi; 
     cv::Mat prmx, prmy, nrmx, nrmy;
 
 
@@ -47,13 +47,16 @@ public:
 
 public:
 
-    void init(double trans, double rot, double ps, double ns, double sc){
+    void init(double trans, double rot, double ps, double ns){
         
-        // proc_roi = cv::Rect(cv::Point(0, 0), proc_size);
+        roi_resized = cv::Mat(proc_size, CV_64F);
+        eros_resized = cv::Mat(proc_size, CV_64F);
+        mexican_resized = cv::Mat(proc_size, CV_64F);
+        o_proc_roi = proc_roi = cv::Rect(cv::Point(0, 0), proc_size);
 
         for(auto &affine : affine_info) {
             affine.A = cv::Mat::zeros(2,3, CV_64F);
-            // affine.warped_img = cv::Mat::zeros(proc_size, CV_64F);
+            affine.warped_img = cv::Mat::zeros(proc_size, CV_64F);
         }
 
         prmx = cv::Mat::zeros(proc_size, CV_32F);
@@ -65,7 +68,6 @@ public:
         this->angle = rot;
         this->pscale = ps;
         this->nscale = ns;
-        this->scaling = sc;
     }
 
     void initState(){
@@ -115,8 +117,9 @@ public:
         affine_info[7].A = cv::getRotationMatrix2D(new_center, 0, nscale);
     }
 
-    void setROI(int buffer = 10){
+    void setROI(int buffer = 20){
 
+        roi_resized = 0; 
         static cv::Rect2d full_roi = cv::Rect2d(cv::Point(0, 0), rot_scaled_tr_template.size());
 
         roi_around_shape = cv::boundingRect(rot_scaled_tr_template);
@@ -135,8 +138,8 @@ public:
         roi_template = rot_scaled_tr_template(roi_around_shape);
         roi_template.convertTo(roi_template_64f, CV_64F);  // is 6 type CV_64FC1
 
-        // cv::resize(roi_template_64f, roi_resized, proc_roi.size(), 0, 0, cv::INTER_CUBIC);
-
+        cv::resize(roi_template_64f, roi_resized(proc_roi), proc_roi.size(), 0, 0, cv::INTER_LINEAR);
+        make_template(roi_resized, mexican_resized);
     }
 
     cv::Mat updateTrMat(double translation_x, double translation_y){
@@ -161,6 +164,34 @@ public:
         initial_position.x = square.x + square.width/2;
         initial_position.y = square.y + square.height/2;
 
+    }
+
+    void squareTemplate (const cv::Size &res){
+        initial_template = cv::Mat::zeros(res.height, res.width, CV_8UC1);
+        square = cv::Rect(306,263, 87, 93);
+        cv::rectangle(initial_template, square, cv::Scalar(255),1,8,0);
+
+        initial_position.x = square.x + square.width/2;
+        initial_position.y = square.y + square.height/2;
+    }
+
+    void starTemplate(const cv::Size &res){
+
+        initial_template = cv::Mat::zeros(res.height, res.width, CV_8UC1);
+
+        cv::line(initial_template, cv::Point(327,172), cv::Point(336,204), cv::Scalar(255),1,8,0);
+        cv::line(initial_template, cv::Point(336,204), cv::Point(367,208), cv::Scalar(255),1,8,0);
+        cv::line(initial_template, cv::Point(367,208), cv::Point(341,226), cv::Scalar(255),1,8,0);
+        cv::line(initial_template, cv::Point(341,226), cv::Point(348,258), cv::Scalar(255),1,8,0);
+        cv::line(initial_template, cv::Point(348,258), cv::Point(324,237), cv::Scalar(255),1,8,0);
+        cv::line(initial_template, cv::Point(324,237), cv::Point(296,256), cv::Scalar(255),1,8,0);
+        cv::line(initial_template, cv::Point(296,256), cv::Point(308,225), cv::Scalar(255),1,8,0);
+        cv::line(initial_template, cv::Point(308,225), cv::Point(283,203), cv::Scalar(255),1,8,0);
+        cv::line(initial_template, cv::Point(283,203), cv::Point(316,202), cv::Scalar(255),1,8,0);
+        cv::line(initial_template, cv::Point(316,202), cv::Point(327,172), cv::Scalar(255),1,8,0);
+
+        initial_position.x = 325;
+        initial_position.y = 219;
     }
 
     void loadTemplate(const cv::Size &res, std::string filename){
@@ -189,15 +220,6 @@ public:
 
     }
 
-    void squareTemplate(const cv::Size &res){
-        initial_template = cv::Mat::zeros(res.height, res.width, CV_8UC1);
-        square = cv::Rect(306,263, 87, 93);
-        cv::rectangle(initial_template, square, cv::Scalar(255),1,8,0);
-
-        initial_position.x = square.x + square.width/2;
-        initial_position.y = square.y + square.height/2;
-    }
-
     // void createDynamicTemplate(){
 
     //     cv::Mat rotMatfunc = getRotationMatrix2D(initial_position, state[2], state[3]);
@@ -212,6 +234,8 @@ public:
 
         cv::Mat rot_scaled_template;
 
+        rot_scaled_tr_template = 0; 
+
         cv::Mat rotMatfunc = getRotationMatrix2D(initial_position, state[2], state[3]);
         cv::warpAffine(initial_template, rot_scaled_template, rotMatfunc, rot_scaled_template.size());
         cv::Mat trMat =  updateTrMat(state[0], state[1]);
@@ -220,22 +244,22 @@ public:
 
     }
 
-    void make_template() {
+    void make_template(const cv::Mat &input, cv::Mat &output) {
         
         static cv::Mat canny_img, f, pos_hat, neg_hat;
         static cv::Size pblur(blur, blur);
         static cv::Size nblur(2*blur-1, 2*blur-1);
         static double minval, maxval;
 
-        // cv::GaussianBlur(roi_resized, pos_hat, pblur, 0);
-        // cv::GaussianBlur(roi_resized, neg_hat, nblur, 0);
-        cv::GaussianBlur(roi_template_64f, pos_hat, pblur, 0);
-        cv::GaussianBlur(roi_template_64f, neg_hat, nblur, 0);
-        mexican_template = pos_hat - neg_hat;
+        cv::GaussianBlur(input, pos_hat, pblur, 0);
+        cv::GaussianBlur(input, neg_hat, nblur, 0);
+        // cv::GaussianBlur(roi_template_64f, pos_hat, pblur, 0);
+        // cv::GaussianBlur(roi_template_64f, neg_hat, nblur, 0);
+        output = pos_hat - neg_hat;
 
-        cv::minMaxLoc(mexican_template, &minval, &maxval);
+        cv::minMaxLoc(output, &minval, &maxval);
         double scale_factor = 1.0 / (2 * std::max(fabs(minval), fabs(maxval)));
-        mexican_template *= scale_factor;
+        output *= scale_factor;
     }
 
     void createWarpings(){
@@ -249,26 +273,35 @@ public:
 
     void createMapWarpings(){
 
-        mexican_template.convertTo(mexican_template_64f, CV_64F);  // is 6 type CV_64FC1
+        std::vector<cv::Mat> affine_matrices;
+        cv::Mat concat_affines; 
+        mexican_resized.convertTo(mexican_template_64f, CV_64F);  // is 6 type CV_64FC1
 
         for (int affine = 0; affine < affine_info.size()-1; affine++) {
             cv::remap(mexican_template_64f, affine_info[affine].warped_img, affine_info[affine].rmp, affine_info[affine].rmsp, cv::INTER_LINEAR);
-            cv::imshow("affine remap" + std::to_string(affine), affine_info[affine].warped_img); 
+            affine_matrices.push_back(affine_info[affine].warped_img);
+            // cv::imshow("affine remap" + std::to_string(affine), affine_info[affine].warped_img); 
         }
 
         affine_info[8].warped_img = mexican_template_64f; 
-    
+        cv::hconcat(affine_matrices, concat_affines);
+        cv::imshow("affine remap", concat_affines);
+
+        affine_matrices.clear(); 
+
     }
 
     void setEROS(const cv::Mat &eros)
     {
+        eros_resized = 0; 
         // cv::GaussianBlur(eros, eros_filtered, cv::Size(5, 5), 0);
         // cv::Mat eros_blurred1; 
         // cv::medianBlur(eros, eros_blurred1, 3);
         cv::GaussianBlur(eros, eros_filtered, cv::Size(gaussian_blur_eros, gaussian_blur_eros), 0);
         eros_filtered(roi_around_shape).copyTo(eros_tracked);
         eros_tracked.convertTo(eros_tracked_64f, CV_64F, 0.003921569);
-        // cv::resize(eros_tracked_64f, eros_resized, proc_roi.size(), 0, 0, cv::INTER_CUBIC);
+
+        cv::resize(eros_tracked_64f, eros_resized(o_proc_roi), o_proc_roi.size(), 0, 0, cv::INTER_CUBIC);
     }
 
     double similarity_score(const cv::Mat &observation, const cv::Mat &expectation) {
@@ -280,19 +313,19 @@ public:
     void performComparisons(){
 
         for (int affine = 0; affine < affine_info.size(); affine++) {
-            affine_info[affine].score = similarity_score(eros_tracked_64f, affine_info[affine].warped_img);
-            // affine_info[affine].score = similarity_score(eros_resized, affine_info[affine].warped_img);
+            // affine_info[affine].score = similarity_score(eros_tracked_64f, affine_info[affine].warped_img);
+            affine_info[affine].score = similarity_score(eros_resized, affine_info[affine].warped_img);
             scores_vector.push_back(affine_info[affine].score);
-//            cv::imshow("affine"+std::to_string(affine), affine_info[affine].warped_img);
+            // cv::imshow("affine"+std::to_string(affine), affine_info[affine].warped_img);
         }
     }
 
     void updateState(){
 
         int best_score_index = max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
-        // double best_score = *max_element(scores_vector.begin(), scores_vector.end());
-        // yInfo() << scores_vector;
-        // yInfo() << "highest score =" << best_score_index << best_score;
+        double best_score = *max_element(scores_vector.begin(), scores_vector.end());
+        yInfo() << scores_vector;
+        yInfo() << "highest score =" << best_score_index << best_score;
         scores_vector.clear();
 
         if (best_score_index == 0)
@@ -308,14 +341,14 @@ public:
         else if (best_score_index == 5)
             state[2] -= angle;
         else if (best_score_index == 6)
-            state[3] = state[3]*pscale;
+            state[3] *= nscale;
         else if (best_score_index == 7)
-            state[3] = state[3]*nscale;
+            state[3] *= pscale;
     }
 
     void updateStateAll(){
 
-        //int best_score_index = max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
+        // int best_score_index = max_element(scores_vector.begin(), scores_vector.end()) - scores_vector.begin();
         // double best_score = *max_element(scores_vector.begin(), scores_vector.end());
         // yInfo() << scores_vector;
         // yInfo() << "highest score =" << best_score_index << best_score;
@@ -326,8 +359,8 @@ public:
         if(scores_vector[3] > no_motion) state[1] -= translation;
         if(scores_vector[4] > no_motion) state[2] += angle;
         if(scores_vector[5] > no_motion) state[2] -= angle;
-        if(scores_vector[6] > no_motion) state[3]*= pscale;
-        if(scores_vector[7] > no_motion) state[3]*= nscale;
+        if(scores_vector[6] > no_motion) state[3] *= nscale;
+        if(scores_vector[7] > no_motion) state[3] *= pscale;
 
         scores_vector.clear();
     }
@@ -381,16 +414,22 @@ public:
     void create_map_scale(double sc, int affine_n){
         double cy = proc_size.height * 0.5;
         double cx = proc_size.width  * 0.5;
+        double palpha = sc;
+        double nalpha = sc;
         for(int x = 0; x < proc_size.width; x++) {
             for(int y = 0; y < proc_size.height; y++) {
-                double dx = -(x-cx) * sc;
-                double dy = -(y-cy) * sc;
-                //positive
-                prmx.at<float>(y, x) = x - dx;
-                prmy.at<float>(y, x) = y - dy;
-                //negative
-                nrmx.at<float>(y, x) = x + dx;
-                nrmy.at<float>(y, x) = y + dy;
+                if (affine_n == 6){
+                    double pdx = (1-palpha)*cx;
+                    double pdy = (1-palpha)*cy; 
+                    prmx.at<float>(y, x) = palpha*x + pdx;
+                    prmy.at<float>(y, x) = palpha*y + pdy;
+                }
+                if (affine_n == 7){
+                    double ndx = (1-nalpha)*cx;
+                    double ndy = (1-nalpha)*cy; 
+                    nrmx.at<float>(y, x) = nalpha*x + ndx;
+                    nrmy.at<float>(y, x) = nalpha*y + ndy; 
+                }
             }
         }
         if (affine_n == 6){
@@ -399,19 +438,26 @@ public:
         }
         else{
             cv::convertMaps(nrmx, nrmy, affine_info[affine_n].rmp, affine_info[affine_n].rmsp, CV_16SC2);
-            affine_info[affine_n].delta = -sc;
+            affine_info[affine_n].delta = sc;
         }
         affine_info[affine_n].axis = affine_n;
     }
 
-    void create_map_rot(double angle, int affine_n){
+    void create_map_z(double sc, int affine_n)
+    {
+        double scaling_fac; 
+        if(affine_n == 6){
+            scaling_fac = sc - 1;
+        }
+        else{
+            scaling_fac = 1 - sc;
+        }
         double cy = proc_size.height * 0.5;
         double cx = proc_size.width  * 0.5;
-        double theta = atan2(angle, std::max(proc_size.width, proc_size.height)*0.5);
         for(int x = 0; x < proc_size.width; x++) {
             for(int y = 0; y < proc_size.height; y++) {
-                double dx = -(y - cy) * cam[fx] / cam[fy] * theta;
-                double dy =  (x - cx) * cam[fy] / cam[fx] * theta;
+                double dx = -(x-cx) * scaling_fac;
+                double dy = -(y-cy) * scaling_fac;
                 //positive
                 prmx.at<float>(y, x) = x - dx;
                 prmy.at<float>(y, x) = y - dy;
@@ -422,11 +468,47 @@ public:
         }
         if (affine_n == 6){
             cv::convertMaps(prmx, prmy, affine_info[affine_n].rmp, affine_info[affine_n].rmsp, CV_16SC2);
-            affine_info[affine_n].delta = theta;
+            affine_info[affine_n].delta = scaling_fac; 
         }
         else{
             cv::convertMaps(nrmx, nrmy, affine_info[affine_n].rmp, affine_info[affine_n].rmsp, CV_16SC2);
-            affine_info[affine_n].delta = -theta;
+            affine_info[affine_n].delta = scaling_fac;
+        }
+        affine_info[affine_n].axis = affine_n;
+    }
+
+
+    void create_map_rot(double angle, int affine_n){
+        double cy = proc_size.height * 0.5;
+        double cx = proc_size.width  * 0.5;
+        double angle_rad = angle*M_PI/180;
+        double palpha = cos(angle_rad);
+        double pbeta = sin(angle_rad);
+        double nalpha = cos(angle_rad);
+        double nbeta = -sin(angle_rad);
+        // double theta = atan2(angle_rad, std::max(proc_size.width, proc_size.height)*0.5);
+        // yInfo()<<angle<<angle_rad; 
+        for(int x = 0; x < proc_size.width; x++) {
+            for(int y = 0; y < proc_size.height; y++) {
+                double pdx = (1-palpha)*cx - pbeta*cy;
+                double pdy = pbeta*cx + (1-palpha)*cy; 
+                double ndx = (1-nalpha)*cx - nbeta*cy;
+                double ndy = nbeta*cx + (1-nalpha)*cy; 
+                //positive
+                nrmx.at<float>(y, x) = palpha*x + pbeta*y + pdx;
+                nrmy.at<float>(y, x) = -pbeta*x + palpha*y + pdy;
+                //negative
+                prmx.at<float>(y, x) = nalpha*x + nbeta*y + ndx;
+                prmy.at<float>(y, x) = -nbeta*x + nalpha*y + ndy; 
+            }
+        }
+        if (affine_n == 4){
+            cv::convertMaps(prmx, prmy, affine_info[affine_n].rmp, affine_info[affine_n].rmsp, CV_16SC2);
+            // affine_info[affine_n].delta = theta;
+        }
+        else{
+            cv::convertMaps(nrmx, nrmy, affine_info[affine_n].rmp, affine_info[affine_n].rmsp, CV_16SC2);
+            // affine_info[affine_n].delta = -theta;
         }
         
         affine_info[affine_n].axis = affine_n;
@@ -439,8 +521,8 @@ public:
         create_map_y(translation, 3);
         create_map_rot(angle, 4);
         create_map_rot(angle, 5);
-        create_map_scale(scaling, 6);
-        create_map_scale(scaling, 7);
+        create_map_scale(pscale, 6);
+        create_map_scale(nscale, 7);
     }
 
 
