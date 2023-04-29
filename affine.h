@@ -32,11 +32,11 @@ public:
     cv::Mat eros_filtered, eros_tracked, eros_tracked_64f, eros_resized;
     cv::Mat rot_scaled_tr_template;
     double translation, angle, pscale, nscale;
-    cv::Point initial_position, new_position;
+    cv::Point2d initial_position, new_position;
     cv::Point2d new_center; 
     int blur{7};
     int gaussian_blur_eros{5}; 
-    double template_scale{0.4}; //0.4
+    double template_scale{0.4}; //0.4, 0.33
 
     cv::Size proc_size{cv::Size(50, 50)};
     cv::Rect proc_roi, o_proc_roi; 
@@ -199,6 +199,8 @@ public:
 
         cv::resize(shape_image, shape_image, cv::Size(template_scale*shape_image.cols, template_scale*shape_image.rows), 0, 0,  cv::INTER_CUBIC); 
 
+        // yInfo()<<template_scale*shape_image.cols<< template_scale*shape_image.rows;
+
         static cv::Mat shape_blur;
         cv::GaussianBlur(shape_image, shape_blur, cv::Size(3,3),0,0);
 
@@ -213,7 +215,7 @@ public:
         initial_position.x = res.width/2;
         initial_position.y = res.height/2;
 
-        cv::Rect mask = cv::Rect(res.width/2 - shape_image.cols/2, res.height/2 - shape_image.rows/2, shape_image.cols, shape_image.rows); 
+        cv::Rect mask = cv::Rect(initial_position.x - shape_image.cols/2, initial_position.y - shape_image.rows/2, shape_image.cols, shape_image.rows); 
 
         edges.copyTo(initial_template(mask)); 
 
@@ -275,8 +277,10 @@ public:
 
     void createMapWarpings(){
 
-        std::vector<cv::Mat> affine_matrices;
-        cv::Mat concat_affines; 
+        // std::vector<cv::Mat> affine_matrices;
+        // std::vector<cv::Mat> couple_matrix;
+
+        // cv::Mat concat_affines; 
         mexican_resized.convertTo(mexican_template_64f, CV_64F);  // is 6 type CV_64FC1
 
         for (int affine = 0; affine < affine_info.size()-1; affine++) {
@@ -286,10 +290,22 @@ public:
         }
 
         affine_info[8].warped_img = mexican_template_64f; 
-        // cv::hconcat(affine_matrices, concat_affines);
+        // for (int i=0; i<affine_matrices.size(); i++){
+        //     yInfo()<<"outside"<<i; 
+        //     if (i%2==0){
+        //         yInfo()<<i; 
+        //         cv::Mat mat_left = affine_matrices[i];
+        //         cv::Mat mat_right = affine_matrices[i+1];
+        //         cv::Mat current_matrix; 
+        //         cv::hconcat(mat_left, mat_right, current_matrix);
+        //         couple_matrix.push_back(current_matrix);
+        //     }
+
+        // }
+        // cv::vconcat(couple_matrix, concat_affines); 
         // cv::imshow("affine remap", concat_affines);
 
-        affine_matrices.clear(); 
+        // affine_matrices.clear(); 
 
     }
 
@@ -301,7 +317,7 @@ public:
         // cv::medianBlur(eros, eros_blurred1, 3);
         cv::GaussianBlur(eros, eros_filtered, cv::Size(gaussian_blur_eros, gaussian_blur_eros), 0);
         eros_filtered(roi_around_shape).copyTo(eros_tracked);
-        eros_tracked.convertTo(eros_tracked_64f, CV_64F, 0.003921569); //0.003921569
+        eros_tracked.convertTo(eros_tracked_64f, CV_64F, 0.003921569); 
 
         cv::resize(eros_tracked_64f, eros_resized(o_proc_roi), o_proc_roi.size(), 0, 0, cv::INTER_LINEAR);
     }

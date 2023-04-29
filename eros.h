@@ -18,6 +18,7 @@ public:
     double tic{-1};
     double dur{0};
     int packet_events{0};
+    int events_inside_roi{0}, n_events_eros_update{0};
 
     void erosUpdate() 
     {
@@ -26,14 +27,15 @@ public:
             tic = my_info.timestamp;
             dur = my_info.duration; 
             packet_events = my_info.count; 
-
+            events_inside_roi = 0; 
             for(auto &v : input_port){
-                if((v.x) > eros_update_roi.x && (v.x) < eros_update_roi.x + eros_update_roi.width && (v.y) > eros_update_roi.y && (v.y) < eros_update_roi.y + eros_update_roi.height)
+                if((v.x) > eros_update_roi.x && (v.x) < eros_update_roi.x + eros_update_roi.width && (v.y) > eros_update_roi.y && (v.y) < eros_update_roi.y + eros_update_roi.height){
                     eros.update(v.x, v.y);
+                    events_inside_roi++; 
+                }
             }
-
+            n_events_eros_update = events_inside_roi;
             dt_not_read_events = input_port.stats_unprocessed().duration;
-
         }
     }
 

@@ -1,4 +1,7 @@
 #include <yarp/os/all.h>
+#include <fstream>
+#include <iostream>
+#include <sstream>
 using namespace yarp::os;
 
 #include "eros.h"
@@ -15,12 +18,15 @@ private:
     double tau_latency{0};
     double dT{0}; 
     double recording_duration, elapsed_time{0}; 
-    float translation{1}, angle{0.8}, pscale{1.001}, nscale{0.99};
+    float translation{2}, angle{0.1}, pscale{1.0001}, nscale{0.9999};
     bool run{false};
     double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
     std::string filename; 
-    std::deque< std::array<double, 14> > data_to_save;
+    std::deque< std::array<double, 19> > data_to_save;
     std::ofstream fs;
+    std::vector<double> gt_values;
+    bool gt_sending{false}; 
+    int gt_index{0};
 
     struct fake_latency{
         std::array<double, 4> state;
@@ -36,13 +42,45 @@ private:
 
 public:
 
+    std::vector<double> readFromCsv(std::string fname){
+
+        std::vector<std::vector<double>> content;
+        std::vector<double> times, gt_values;
+        std::string line, word, ts, gt;
+
+        std::fstream file (fname, std::ios::in);
+        if(file.is_open())
+        {
+            while(std::getline(file, line))
+            {
+                std::stringstream str(line);
+    
+                getline(str, ts, ' ');
+                times.push_back(std::stod(ts));
+                getline(str, gt, '\n');
+                gt_values.push_back(std::stod(gt));
+                
+            }
+        }
+        else
+            std::cout<<"Could not open the file\n";
+
+        // for(int i=0;i<times.size();i++)    
+        //     std::cout<<times[i]<<" "<<gt_values[i]<<"\n";
+
+        return gt_values; 
+    }
+
     bool configure(yarp::os::ResourceFinder& rf) override
     {
         // options and parameters
     
         eros_k = rf.check("eros_k", Value(9)).asInt32();
         eros_d = rf.check("eros_d", Value(0.5)).asFloat64();
-        period = rf.check("period", Value(0.01)).asFloat64();
+        if(!gt_sending)
+            period = rf.check("period", Value(0.01)).asFloat64();
+        else
+            period = 0.001; 
         tau_latency=rf.check("tau", Value(0.0)).asFloat64();
         recording_duration = rf.check("rec_time", Value(10000)).asFloat64();
         filename = rf.check("shape-file", Value("/usr/local/src/affine2dtracking/shapes/star.png")).asString(); 
@@ -71,7 +109,6 @@ public:
         }
         yInfo()<<"eros started"; 
 
-
         if (rf.check("data-file")) {
             std::string ouputfilename = rf.find("data-file").asString();
             fs.open(ouputfilename);
@@ -80,6 +117,9 @@ public:
                 return false;
             }
         }
+
+        if(gt_sending)
+            gt_values = readFromCsv("/usr/local/src/affine2dtracking/gt_trans_x_240Hz.csv");
 
         eros_handler.eros_update_roi=cv::Rect(0,0,640,480);
 
@@ -109,33 +149,41 @@ public:
     double getPeriod() override{
         return period;
     }
-
+        
     bool updateModule() {
         cv::Mat norm_mexican;
         if (run){
-            // static double start_time = eros_handler.tic; 
-            // elapsed_time = eros_handler.tic - start_time;
 
-            // cv::Mat intersection_mat;
-            // cv::bitwise_and(affine_handler.eros_filtered(affine_handler.roi_around_shape), affine_handler.rot_scaled_tr_template(affine_handler.roi_around_shape),intersection_mat);
-            // cv::Mat union_mat = affine_handler.eros_filtered(affine_handler.roi_around_shape)+affine_handler.rot_scaled_tr_template(affine_handler.roi_around_shape);
-            // double total_pixels = cv::countNonZero(union_mat); 
+            // if (gt_sending){
+            //     ros_publish.publishTargetPos(img_size, gt_values[gt_index], img_size.height/2, 0, 1); 
+            //     gt_index++; 
+            // }
+            // else{
+                static double start_time = eros_handler.tic; 
+                elapsed_time = eros_handler.tic - start_time;
 
-            // double matches = cv::countNonZero(intersection_mat);
-            // double percentage = (100*matches/total_pixels);
+                // cv::Mat intersection_mat;
+                // cv::bitwise_and(affine_handler.eros_filtered(affine_handler.roi_around_shape), affine_handler.rot_scaled_tr_template(affine_handler.roi_around_shape),intersection_mat);
+                // cv::Mat union_mat = affine_handler.eros_filtered(affine_handler.roi_around_shape)+affine_handler.rot_scaled_tr_template(affine_handler.roi_around_shape);
+                // double total_pixels = cv::countNonZero(union_mat); 
 
-            // yInfo()<<matches<<total_pixels<<percentage;
-            // imshow("overlap", intersection_mat);
-            // imshow("total", union_mat);
+                // double matches = cv::countNonZero(intersection_mat);
+                // double percentage = (100*matches/total_pixels);
 
-            //cv::normalize(affine_handler.mexican_template_64f, norm_mexican, 1, 0, cv::NORM_MINMAX);
-            //imshow("MEXICAN ROI", affine_handler.mexican_template_64f+0.5);
-            //imshow("TEMPLATE ROI", affine_handler.roi_template);
-            // imshow("EROS ROI", affine_handler.eros_tracked);
-            // cv::circle(eros_handler.eros.getSurface(), affine_handler.new_position, 2, 255, -1);
-            // cv::rectangle(eros_handler.eros.getSurface(), affine_handler.roi_around_shape, 255,1,8,0);
-            // imshow("EROS RESIZE", affine_handler.eros_resized);
-            imshow("EROS FULL", affine_handler.eros_filtered+affine_handler.rot_scaled_tr_template);
+                // yInfo()<<matches<<total_pixels<<percentage;
+                // imshow("overlap", intersection_mat);
+                // imshow("total", union_mat);
+
+                //cv::normalize(affine_handler.mexican_template_64f, norm_mexican, 1, 0, cv::NORM_MINMAX);
+                //imshow("MEXICAN ROI", affine_handler.mexican_template_64f+0.5);
+                //imshow("TEMPLATE ROI", affine_handler.roi_template);
+                // imshow("EROS ROI", affine_handler.eros_tracked);
+                // cv::circle(eros_handler.eros.getSurface(), affine_handler.new_position, 2, 255, -1);
+                // cv::rectangle(eros_handler.eros.getSurface(), affine_handler.roi_around_shape, 255,1,8,0);
+                // imshow("EROS RESIZE", affine_handler.eros_resized);
+                imshow("EROS FULL", affine_handler.eros_filtered+affine_handler.rot_scaled_tr_template);
+            // }
+            
         }
         else{
             // cv::rectangle(eros_handler.eros.getSurface(), affine_handler.square, 255, 1, 8,0);
@@ -158,12 +206,13 @@ public:
         // }
         // yInfo() << dt_warpings<<dt_comparison<<dt_eros; 
 
-        // if(elapsed_time > recording_duration){
-        //     yInfo()<<"recording duration reached"; 
-        //     return false; 
-        // }
+        if(elapsed_time > recording_duration){
+            yInfo()<<"recording duration reached"; 
+            return false; 
+        }
 
-        // std::cout<<dT<<std::endl; 
+        // std::cout<<dT<<std::endl;
+        // yInfo()<<dT<<affine_handler.roi_around_shape.width<<affine_handler.roi_around_shape.height;  
 
         return true;
     }
@@ -186,6 +235,7 @@ public:
                 affine_handler.performComparisons();
                 affine_handler.updateStateAll();
                 eros_handler.eros_update_roi = affine_handler.roi_around_shape;
+
                 double eros_time_after = eros_handler.tic;
                 double eros_diff_time = eros_time_after-eros_time_before;
 
@@ -200,13 +250,12 @@ public:
                     }
                     if (found_pos_sent){
                         ros_publish.publishTargetPos(img_size, current_state[0], current_state[1], current_state[2], current_state[3]);
-                        data_to_save.push_back({elapsed_time, eros_handler.dur, double(eros_handler.packet_events), current_state[0], current_state[1], current_state[2], current_state[3], double(eros_handler.dt_not_read_events), eros_diff_time, dT, affine_handler.roi_around_shape.x, affine_handler.roi_around_shape.y, affine_handler.roi_around_shape.width, affine_handler.roi_around_shape.height});
+                        data_to_save.push_back({elapsed_time, eros_handler.dur, double(eros_handler.packet_events), current_state[0], current_state[1], current_state[2], current_state[3], double(eros_handler.dt_not_read_events), eros_diff_time, dT, affine_handler.roi_around_shape.x, affine_handler.roi_around_shape.y, affine_handler.roi_around_shape.width, affine_handler.roi_around_shape.height, double(eros_handler.n_events_eros_update), double(eros_handler.eros_update_roi.x), double(eros_handler.eros_update_roi.y), double(eros_handler.eros_update_roi.width), double(eros_handler.eros_update_roi.height)});
                     }
-
                 }else{
                     ros_publish.publishTargetPos(img_size, affine_handler.new_position.x, affine_handler.new_position.y, affine_handler.state[2], affine_handler.state[3]); 
                     if (fs.is_open() && eros_handler.tic > 0) {
-                        data_to_save.push_back({elapsed_time, eros_handler.dur, double(eros_handler.packet_events), double(affine_handler.new_position.x), double(affine_handler.new_position.y), affine_handler.state[2], affine_handler.state[3], double(eros_handler.dt_not_read_events), eros_diff_time, dT, affine_handler.roi_around_shape.x, affine_handler.roi_around_shape.y, affine_handler.roi_around_shape.width, affine_handler.roi_around_shape.height});
+                        data_to_save.push_back({elapsed_time, eros_handler.dur, double(eros_handler.packet_events), double(affine_handler.new_position.x), double(affine_handler.new_position.y), affine_handler.state[2], affine_handler.state[3], double(eros_handler.dt_not_read_events), eros_diff_time, dT, affine_handler.roi_around_shape.x, affine_handler.roi_around_shape.y, affine_handler.roi_around_shape.width, affine_handler.roi_around_shape.height, double(eros_handler.n_events_eros_update), double(eros_handler.eros_update_roi.x), double(eros_handler.eros_update_roi.y), double(eros_handler.eros_update_roi.width), double(eros_handler.eros_update_roi.height)});
                     }
                 }
                 
@@ -236,10 +285,11 @@ public:
         if(fs.is_open())
         {
             yInfo() << "Writing data";
-            fs << "tr="<<std::to_string(translation) <<", theta="<< std::to_string(angle) <<", pscale="<< std::to_string(pscale) << ", nscale="<< std::to_string(nscale) <<std::endl;
-            fs << "mexican blur="<< std::to_string(affine_handler.blur) << ", eros decay="<< std::to_string(eros_d) <<", eros kernel="<<std::to_string(eros_k)<<", gaussian blur eros="<<std::to_string(affine_handler.gaussian_blur_eros)<<", shape scale="<< std::to_string(affine_handler.template_scale)<<", shape filename="<<filename<<std::endl; 
+            fs << "tau="<<tau_latency<<"tr="<<std::to_string(translation) <<", theta="<< std::to_string(angle) <<", pscale="<< std::to_string(pscale) << ", nscale="<< std::to_string(nscale) <<std::endl;
+            fs << "proc_size="<<affine_handler.proc_size<<", mexican blur="<< std::to_string(affine_handler.blur) << ", eros decay="<< std::to_string(eros_d) <<", eros kernel="<<std::to_string(eros_k)<<", gaussian blur eros="<<std::to_string(affine_handler.gaussian_blur_eros)<<", eros buffer=0"<<std::endl;
+            fs << "shape scale="<< std::to_string(affine_handler.template_scale)<<", shape filename="<<filename<<std::endl; 
             for(auto i : data_to_save)
-                fs << std::setprecision(20) << i[0] << " " << i[1] << " " << i[2] << " " << i[3] << " "<<i[4]<< " "<<i[5]<<" "<<i[6]<<" "<<i[7]<<" "<<i[8]<<" "<<i[9]<<" "<<i[10]<<" "<<i[11]<< " " << i[12] << " " << i[13] << " "<<i[14]<<std::endl;
+                fs << std::setprecision(20) << i[0] << " " << i[1] << " " << i[2] << " " << i[3] << " "<<i[4]<< " "<<i[5]<<" "<<i[6]<<" "<<i[7]<<" "<<i[8]<<" "<<i[9]<<" "<<i[10]<<" "<<i[11]<< " " << i[12] << " " << i[13] << " "<<i[14]<<" "<<i[15]<<" "<<i[16]<<" "<<i[17]<<" "<<i[18]<<std::endl;
             fs.close();
             yInfo() << "Finished Writing data";
         }
