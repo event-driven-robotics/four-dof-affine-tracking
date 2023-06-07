@@ -1,4 +1,3 @@
- 
 import os
 import numpy as np
 from tqdm import tqdm
@@ -22,6 +21,16 @@ matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 plt.style.use(params)
 
+w = 1920 
+h = 1080
+data_recording_time = 10
+
+def load_ground_truth(filename):
+    groud_truth_combined_motions = np.loadtxt(filename, delimiter=" ")
+    groud_truth_combined_motions[:,0] = groud_truth_combined_motions[:,0]+1920/2
+    groud_truth_combined_motions[:,1] = groud_truth_combined_motions[:,1]+1080/2
+    return groud_truth_combined_motions
+
 def generate_ground_truth(speed_array, gt_array):
 
     gt_list = []
@@ -33,6 +42,27 @@ def generate_ground_truth(speed_array, gt_array):
         ratio = int(data_recording_time/video_duration) + 1
         gt_enlarged = np.tile(gt_array, ratio)
         t_enlarged = np.arange(0, video_duration*ratio, video_duration/len(gt_array))
+        t_cut = t_enlarged[t_enlarged<data_recording_time]
+        gt_cut = gt_enlarged[0:len(t_cut)]
+        gt_list.append(gt_cut)
+        t_list.append(t_cut)
+        # ax_plot[i].plot(t_cut, gt_cut)
+
+    return gt_list, t_list
+
+
+def generate_ground_truth_combined(speed, gt_array):
+
+    gt_list = []
+    t_list = []
+    gt_rows, gt_cols = gt_array.shape
+    for i in range(gt_cols):
+
+        video_duration = gt_rows/speed
+        t = np.arange(0, video_duration, video_duration/gt_rows)
+        ratio = int(data_recording_time/video_duration) + 1
+        gt_enlarged = np.tile(gt_array[:,i], ratio)
+        t_enlarged = np.arange(0, video_duration*ratio, video_duration/gt_rows)
         t_cut = t_enlarged[t_enlarged<data_recording_time]
         gt_cut = gt_enlarged[0:len(t_cut)]
         gt_list.append(gt_cut)
@@ -71,154 +101,352 @@ def compute_scale_vector():
 
 def compute_error(t_list, gt_list, shape_list, motion_index, column_state, reference):
 
-    mean_error = []
-    new_x_list = []
+    error_list = []
 
-    for i in range(6):
+    fig_error, ax_error = plt.subplots(2,3)   
+    for i in range(len(gt_list)):
         f = interpolate.interp1d(shape_list[motion_index+i][:,0], (shape_list[motion_index+i][:,column_state]-reference), kind='nearest',fill_value="extrapolate")
-        y_ = f(t_list[i])
 
-        from sklearn.linear_model import LinearRegression
-        model = LinearRegression().fit(np.array(y_).reshape((-1, 1)), np.array(gt_list[i]))
-        intercept_b = model.intercept_
-        coeff_ang_m = model.coef_
+        if (motion_index >= 0 and motion_index < 6):
+            times = t_list[i][0]
+        else:
+            times = t_list[i]
 
-        new_x = coeff_ang_m*(y_)+intercept_b
+        y_ = f(times)
 
-        new_x_list.append(new_x)
+        if (motion_index == 6 and column_state == 5):
+            y_ = -y_
+        if (motion_index == 12 and column_state == 6):
+            y_ = abs(y_-1)+1
+        diff = abs(y_ - gt_list[i])
+        error_list.append(diff)
 
-        diff = abs(gt_list[i]-new_x)
+        ax_error[i//3, i%3].plot(times,diff, label = 'error')
+        ax_error[i//3, i%3].plot(times,y_, label = 'tracked')
+        ax_error[i//3, i%3].plot(times,gt_list[i], label = 'gt')
+        ax_error[i//3, i%3].set_title("speed #"+str(i))
+        ax_error[i//3, i%3].legend(loc="upper right")
+        
+    plt.setp(ax_error[-1], xlabel='Time [s]')
+    if (column_state == 3):
+        plt.setp(ax_error[:, 0], ylabel='x [cm]')
+    if (column_state == 4):
+        plt.setp(ax_error[:], ylabel='y [cm]')
+    if (column_state == 5):
+        plt.setp(ax_error[:], ylabel=r'$\theta$[deg]')
+    if (column_state == 6):
+        plt.setp(ax_error[:], ylabel='scale')
 
-        mean_error.append(np.mean(diff))
+    if (motion_index == 6):
+        plt.suptitle(shape+" rotate")
+    if (motion_index == 12):
+        plt.suptitle(shape+" scale")
+    if (motion_index == 18):
+        plt.suptitle(shape+" translation x")
+    if (motion_index == 24):
+        plt.suptitle(shape+" translation y")
 
-        fig_error = plt.figure()
-        plt.plot(t_list[i],diff)
-        plt.plot(t_list[i],new_x)
-        plt.plot(t_list[i],gt_list[i])
+    plt.legend()
 
-    return mean_error, new_x_list
-
-w = 1920 
-h = 1080
-data_recording_time = 10
+    return error_list
 
 ground_truth_trans_x = np.hstack((np.arange(1, 768+1, 1), np.arange(767, -769, -1), np.arange(-767, 1, 1)))
+ground_truth_trans_x = np.divide(ground_truth_trans_x, 1920)*32.51
 speeds_trans_x = [240,480,720,960,1200,1440]
 gt_trans_x_list, t_trans_x_list = generate_ground_truth(speeds_trans_x, ground_truth_trans_x)
+ground_truth_trans_x_y = []
+ground_truth_trans_x_rot = []
+ground_truth_trans_x_sc = []
+for idx, value in enumerate(gt_trans_x_list):
+    ground_truth_trans_x_y.append((18.29/2)*np.ones(len(value)))
+    ground_truth_trans_x_rot.append(np.zeros(len(value)))
+    ground_truth_trans_x_sc.append(np.ones(len(value)))
 
 ground_truth_trans_y = np.hstack((np.arange(1, 349, 1), np.arange(347, -349, -1), np.arange(-347, 1, 1)))
+ground_truth_trans_y = np.divide(ground_truth_trans_y, 1080)*18.29
 speeds_trans_y = [135,270,405,540,675,810]
 gt_trans_y_list , t_trans_y_list= generate_ground_truth(speeds_trans_y, ground_truth_trans_y)
+ground_truth_trans_y_x = []
+ground_truth_trans_y_rot = []
+ground_truth_trans_y_sc = []
+for idx, value in enumerate(gt_trans_y_list):
+    ground_truth_trans_y_x.append((32.51/2)*np.ones(len(value)))
+    ground_truth_trans_y_rot.append(np.zeros(len(value)))
+    ground_truth_trans_y_sc.append(np.ones(len(value)))
 
 rotation_step = 0.3
 ground_truth_rot = np.hstack((np.arange(rotation_step, 91.2+rotation_step,rotation_step), np.arange(90.9, -91.2+rotation_step,-rotation_step), np.arange(-90.9, 0+rotation_step, rotation_step)))
 speeds_rot = [100,150,175,200,225,250]
 gt_rot_list, t_rot_list = generate_ground_truth(speeds_rot, ground_truth_rot)
-
+ground_truth_rot_x = []
+ground_truth_rot_y = []
+ground_truth_rot_sc = []
+for idx, value in enumerate(gt_rot_list):
+    ground_truth_rot_x.append((32.51/2)*np.ones(len(value)))
+    ground_truth_rot_y.append((18.29/2)*np.ones(len(value)))
+    ground_truth_rot_sc.append(np.ones(len(value)))
 
 ground_truth_scale = compute_scale_vector()
 speeds_scale = [100,200,300,400,600,800]
 gt_scale_list, t_scale_list = generate_ground_truth(speeds_scale, ground_truth_scale)
+ground_truth_scale_x = []
+ground_truth_scale_rot = []
+ground_truth_scale_y = []
+for idx, value in enumerate(gt_scale_list):
+    ground_truth_scale_x.append((32.51/2)*np.ones(len(value)))
+    ground_truth_scale_y.append((18.29/2)*np.ones(len(value)))
+    ground_truth_scale_rot.append(np.zeros(len(value)))
+
+ground_truth_combined = load_ground_truth("gt_combined_motions.txt")
+speed_combined = [100,200,300,400,600,800]
+
+gt_comb_speeds = []
+t_comb_speeds = []
+
+for count, value in enumerate(speed_combined):
+    gt_comb_list, t_comb_list = generate_ground_truth_combined(value, ground_truth_combined)
+    gt_comb_speeds.append(gt_comb_list)
+    t_comb_speeds.append(t_comb_list)
+
+x_gt_comb_list = []
+y_gt_comb_list = []
+rot_gt_comb_list = []
+sc_gt_comb_list = []
+for speed in range(6):  
+    x_gt_comb_list.append(np.divide(gt_comb_speeds[speed][0], 1920)*32.51)
+    y_gt_comb_list.append(np.divide(gt_comb_speeds[speed][1], 1080)*18.29)
+    rot_gt_comb_list.append(gt_comb_speeds[speed][3])
+    sc_gt_comb_list.append(gt_comb_speeds[speed][2])
+
+error_x_all_shapes = []
+error_y_all_shapes = []
+error_rot_all_shapes = []
+error_sc_all_shapes = []
+
+shape_names = ['arrow', 'flag', 'hexagon', 'oval', 'pacman', 'puzzle', 'rectangle','square', 'star', 'triangle']
+
+for idx_shape, shape in enumerate(shape_names):
+    shape_path = "open-loop_results/"+shape
+    shape_files = sorted([file for file in os.listdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), shape_path)) if file.endswith('.txt')])
+    shape_data_list = []
+
+    H_list = []
+
+    for f in tqdm(shape_files, "Loading shape data"):
+
+        lines = []
+        with open(os.path.join("open-loop_results/arrow/homography/homography.txt")) as linefile:
+            for row in range(3):
+                line = linefile.readline().strip('\n')
+                line_list = list(map(float, line.split(' ')))
+                lines.append(line_list)
+                
+            H_list.append(np.array(lines))
+
+        shape_data = np.loadtxt(os.path.join(shape_path, f), delimiter=" ", skiprows=3)[:,:15] # delete the first six lines
+        shape_data_list.append(shape_data)
+
+    for idx_global, x_global in enumerate(shape_data_list):
+
+        u_monitor_plane = []
+        v_monitor_plane = []
+        x_cm = []
+        y_cm = []
+        rot_comb = []
+        sc_comb = []
+
+        for idx, x in enumerate(x_global):
+            coord_camera_plane = np.array([x_global[idx][3],x_global[idx][4], 1])
+            result = np.matmul(H_list[idx_global], coord_camera_plane)
+
+            u_monitor_plane.append(result[0]/result[2])
+            v_monitor_plane.append(result[1]/result[2])
+
+            x_cm.append(np.divide(result[0]/result[2],1920)*32.51)
+            y_cm.append(np.divide(result[1]/result[2],1080)*18.29)
+            rot_comb.append(shape_data_list[idx_global][idx][5])
+            sc_comb.append(shape_data_list[idx_global][idx][6])
+
+            shape_data_list[idx_global][idx][3] = np.divide(result[0]/result[2],1920)*32.51
+            shape_data_list[idx_global][idx][4] = np.divide(result[1]/result[2],1080)*18.29
+
+    error_x_4dof_list = compute_error(t_comb_speeds, x_gt_comb_list, shape_data_list, 0, 3, 0)
+    error_y_4dof_list = compute_error(t_comb_speeds, y_gt_comb_list, shape_data_list, 0, 4, 0)
+    error_rot_4dof_list = compute_error(t_comb_speeds, rot_gt_comb_list, shape_data_list, 0, 5, 0)
+    error_sc_4dof_list = compute_error(t_comb_speeds, sc_gt_comb_list, shape_data_list, 0, 6, 0)
+
+    error_x_4dof_all_speeds = np.concatente(error_x_4dof_list[0], error_x_4dof_list[1], error_x_4dof_list[2], error_x_4dof_list[3], error_x_4dof_list[4], error_x_4dof_list[5])
+    error_y_4dof_all_speeds = np.concatente(error_y_4dof_list[0], error_y_4dof_list[1], error_y_4dof_list[2], error_y_4dof_list[3], error_y_4dof_list[4], error_y_4dof_list[5])
+    error_rot_4dof_all_speeds = np.concatente(error_rot_4dof_list[0], error_rot_4dof_list[1], error_rot_4dof_list[2], error_rot_4dof_list[3], error_rot_4dof_list[4], error_rot_4dof_list[5])
+    error_sc_4dof_all_speeds = np.concatente(error_sc_4dof_list[0], error_sc_4dof_list[1], error_sc_4dof_list[2], error_sc_4dof_list[3], error_sc_4dof_list[4], error_sc_4dof_list[5])
 
 
-arrow_path = "open-loop_results/arrow"
-arrow_files = sorted([file for file in os.listdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), arrow_path)) if file.endswith('.txt')])
-arrow_data_list = []
+    error_x_trans_x_list = compute_error(t_trans_x_list,gt_trans_x_list,shape_data_list,18,3,32.51/2)
+    error_y_trans_x_list = compute_error(t_trans_x_list,ground_truth_trans_x_y,shape_data_list,18,4,0)
+    error_rot_trans_x_list = compute_error(t_trans_x_list,ground_truth_trans_x_rot,shape_data_list,18,5,0)
+    error_sc_trans_x_list = compute_error(t_trans_x_list,ground_truth_trans_x_sc,shape_data_list,18,6,0)
 
-for f in tqdm(arrow_files, "Loading arrow shape data"):
-    arrow_data = np.loadtxt(os.path.join(arrow_path, f), delimiter=" ", skiprows=2)[:,:15] # delete the first two lines
-    arrow_data_list.append(arrow_data)
+    error_x_trans_x_all_speeds = np.concatente(error_x_trans_x_list[0], error_x_trans_x_list[1], error_x_trans_x_list[2], error_x_trans_x_list[3], error_x_trans_x_list[4], error_x_trans_x_list[5])
+    error_y_trans_x_all_speeds = np.concatente(error_y_trans_x_list[0], error_y_trans_x_list[1], error_y_trans_x_list[2], error_y_trans_x_list[3], error_y_trans_x_list[4], error_y_trans_x_list[5])
+    error_rot_trans_x_all_speeds = np.concatente(error_rot_trans_x_list[0], error_rot_trans_x_list[1], error_rot_trans_x_list[2], error_rot_trans_x_list[3], error_rot_trans_x_list[4], error_rot_trans_x_list[5])
+    error_sc_trans_x_all_speeds = np.concatente(error_sc_trans_x_list[0], error_sc_trans_x_list[1], error_sc_trans_x_list[2], error_sc_trans_x_list[3], error_sc_trans_x_list[4], error_sc_trans_x_list[5])
 
-# for idx, x in enumerate(arrow_data_list):
+
+    error_y_trans_y_list = compute_error(t_trans_y_list,gt_trans_y_list,shape_data_list,24,4,18.29/2)
+    error_x_trans_y_list = compute_error(t_trans_y_list,ground_truth_trans_y_x,shape_data_list,24,3,0)
+    error_rot_trans_y_list = compute_error(t_trans_y_list,ground_truth_trans_y_rot,shape_data_list,24,5,0)
+    error_sc_trans_y_list = compute_error(t_trans_y_list,ground_truth_trans_y_sc,shape_data_list,24,6,0)
     
-#     if (idx>=0 and idx<6):
-#         ax_gt_rot[idx].plot(arrow_data_list[idx][:, 0], arrow_data_list[idx][:, 5])
+    error_x_trans_y_all_speeds = np.concatente(error_x_trans_y_list[0], error_x_trans_y_list[1], error_x_trans_y_list[2], error_x_trans_y_list[3], error_x_trans_y_list[4], error_x_trans_y_list[5])
+    error_y_trans_y_all_speeds = np.concatente(error_y_trans_y_list[0], error_y_trans_y_list[1], error_y_trans_y_list[2], error_y_trans_y_list[3], error_y_trans_y_list[4], error_y_trans_y_list[5])
+    error_rot_trans_y_all_speeds = np.concatente(error_rot_trans_y_list[0], error_rot_trans_y_list[1], error_rot_trans_y_list[2], error_rot_trans_y_list[3], error_rot_trans_y_list[4], error_rot_trans_y_list[5])
+    error_sc_trans_y_all_speeds = np.concatente(error_sc_trans_y_list[0], error_sc_trans_y_list[1], error_sc_trans_y_list[2], error_sc_trans_y_list[3], error_sc_trans_y_list[4], error_sc_trans_y_list[5])
 
-#     if (idx>=6 and idx<12):
-#         ax_gt_scale[idx-6].plot(arrow_data_list[idx][:, 0], arrow_data_list[idx][:, 6])
 
-#     if (idx>=12 and idx<18):
-#         ax_gt_trans_x[idx-12].plot(arrow_data_list[idx][:, 0], arrow_data_list[idx][:, 3]) # 748 vs 562 and 212 vs 84
+    error_rot_rot_list = compute_error(t_rot_list,gt_rot_list,shape_data_list,6,5,0)
+    error_x_rot_list = compute_error(t_rot_list,ground_truth_rot_x,shape_data_list,6,3,0)
+    error_y_rot_list = compute_error(t_rot_list,ground_truth_rot_y,shape_data_list,6,4,0)
+    error_sc_rot_list = compute_error(t_rot_list,ground_truth_rot_sc,shape_data_list,6,6,0)
 
-#     if (idx>=18 and idx<24):
-#         ax_gt_trans_y[idx-18].plot(arrow_data_list[idx][:, 0], arrow_data_list[idx][:, 4])
+    error_x_rot_all_speeds = np.concatente(error_x_rot_list[0], error_x_rot_list[1], error_x_rot_list[2], error_x_rot_list[3], error_x_rot_list[4], error_x_rot_list[5])
+    error_y_rot_all_speeds = np.concatente(error_y_rot_list[0], error_y_rot_list[1], error_y_rot_list[2], error_y_rot_list[3], error_y_rot_list[4], error_y_rot_list[5])
+    error_rot_rot_all_speeds = np.concatente(error_rot_rot_list[0], error_rot_rot_list[1], error_rot_rot_list[2], error_rot_rot_list[3], error_rot_rot_list[4], error_rot_rot_list[5])
+    error_sc_rot_all_speeds = np.concatente(error_sc_rot_list[0], error_sc_rot_list[1], error_sc_rot_list[2], error_sc_rot_list[3], error_sc_rot_list[4], error_sc_rot_list[5])
 
-arrow_error_trans_x_list, interp_trans_x = compute_error(t_trans_x_list,gt_trans_x_list,arrow_data_list,12,3,320)
-arrow_error_trans_y_list, interp_trans_y = compute_error(t_trans_y_list,gt_trans_y_list,arrow_data_list,18,4,240)
-arrow_error_rot_list, interp_rot = compute_error(t_rot_list,gt_rot_list,arrow_data_list,0,5,0)
-arrow_error_scale_list, interp_scale = compute_error(t_scale_list, gt_scale_list, arrow_data_list, 6, 6, 1)
 
-print(arrow_error_trans_x_list)
-print(arrow_error_trans_y_list)
-print(arrow_error_rot_list)
-print(arrow_error_scale_list)
 
-fig_error_time, ax_error_time = plt.subplots(2, 2)
-ax_error_time[0,0].plot(t_trans_x_list[3], interp_trans_x[3], color='tab:blue',linewidth=1)
-ax_error_time[0, 0].plot(t_trans_x_list[3], gt_trans_x_list[3], color='tab:blue', linestyle='dashed', linewidth=2)
-ax_error_time[0, 1].plot(t_trans_y_list[3], interp_trans_y[3], color='tab:orange', linewidth=1)
-ax_error_time[0, 1].plot(t_trans_y_list[3], gt_trans_y_list[3], color='tab:orange', linestyle='dashed', linewidth=2)
-ax_error_time[1, 0].plot(t_rot_list[3], interp_rot[3], color='tab:green', linewidth=1)
-ax_error_time[1, 0].plot(t_rot_list[3], gt_rot_list[3], color='tab:green', linestyle='dashed', linewidth=2)
-ax_error_time[1, 1].plot(t_scale_list[3], interp_scale[3], color='tab:red', linewidth=1)
-ax_error_time[1, 1].plot(t_scale_list[3], gt_scale_list[3], color='tab:red', linestyle='dashed', linewidth=2)
+    error_sc_scale_list = compute_error(t_scale_list, gt_scale_list, shape_data_list, 12, 6, 0)
+    error_x_scale_list = compute_error(t_scale_list, ground_truth_scale_x, shape_data_list, 12, 3, 0)
+    error_y_scale_list = compute_error(t_scale_list, ground_truth_scale_y, shape_data_list, 12, 4, 0)
+    error_rot_scale_list = compute_error(t_scale_list, ground_truth_scale_rot, shape_data_list, 12, 5, 0)
 
-plt.setp(ax_error_time[-1, :], xlabel='Time [s]')
-plt.setp(ax_error_time[1, 0], ylabel='Theta [deg]')
-plt.setp(ax_error_time[1, 1], ylabel='Scale')
-plt.setp(ax_error_time[0,0], ylabel='x [pix]')
-plt.setp(ax_error_time[0,1], ylabel='y [pix]')
+    error_x_sc_all_speeds = np.concatente(error_x_scale_list[0], error_x_scale_list[1], error_x_scale_list[2], error_x_scale_list[3], error_x_scale_list[4], error_x_scale_list[5])
+    error_y_sc_all_speeds = np.concatente(error_y_scale_list[0], error_y_scale_list[1], error_y_scale_list[2], error_y_scale_list[3], error_y_scale_list[4], error_y_scale_list[5])
+    error_rot_sc_all_speeds = np.concatente(error_rot_scale_list[0], error_rot_scale_list[1], error_rot_scale_list[2], error_rot_scale_list[3], error_rot_scale_list[4], error_rot_scale_list[5])
+    error_sc_sc_all_speeds = np.concatente(error_sc_scale_list[0], error_sc_scale_list[1], error_sc_scale_list[2], error_sc_scale_list[3], error_sc_scale_list[4], error_sc_scale_list[5])
 
+
+
+    error_x_all_motions_and_speeds = np.concatente(error_x_4dof_all_speeds, error_x_trans_x_all_speeds, error_x_trans_y_all_speeds, error_x_rot_all_speeds, error_x_sc_all_speeds)
+    error_y_all_motions_and_speeds = np.concatente(error_y_4dof_all_speeds, error_y_trans_x_all_speeds, error_y_trans_y_all_speeds, error_y_rot_all_speeds, error_y_sc_all_speeds)
+    error_rot_all_motions_and_speeds = np.concatente(error_rot_4dof_all_speeds, error_rot_trans_x_all_speeds, error_rot_trans_y_all_speeds, error_rot_rot_all_speeds, error_rot_sc_all_speeds)
+    error_sc_all_motions_and_speeds = np.concatente(error_sc_4dof_all_speeds, error_sc_trans_x_all_speeds, error_sc_trans_y_all_speeds, error_sc_rot_all_speeds, error_sc_sc_all_speeds)
+
+    error_x_all_shapes.append(error_x_all_motions_and_speeds)
+    error_y_all_shapes.append(error_y_all_motions_and_speeds)
+    error_rot_all_shapes.append(error_rot_all_motions_and_speeds)
+    error_sc_all_shapes.append(error_sc_all_motions_and_speeds)
+
+    n_speeds = len(speed_combined)
+
+    labels = ['\nV6','\nV5','\nV4','\nV3','\nV2', '\nV1']
+    ticks=[0,1,2,3,4,5]
+    medianprops = dict(color='white')
+
+    vec_x_pos_4dof=[np.array(error_x_4dof_list[5]), np.array(error_x_4dof_list[4]), np.array(error_x_4dof_list[3]), np.array(error_x_4dof_list[2]), np.array(error_x_4dof_list[1]), np.array(error_x_4dof_list[0])]
+    vec_y_pos_4dof=[np.array(error_y_4dof_list[5]), np.array(error_y_4dof_list[4]), np.array(error_y_4dof_list[3]), np.array(error_y_4dof_list[2]), np.array(error_y_4dof_list[1]), np.array(error_y_4dof_list[0])]
+    vec_rot_4dof=[np.array(error_rot_4dof_list[5]), np.array(error_rot_4dof_list[4]), np.array(error_rot_4dof_list[3]), np.array(error_rot_4dof_list[2]), np.array(error_rot_4dof_list[1]), np.array(error_rot_4dof_list[0])]
+    vec_sc_4dof=[np.array(error_sc_4dof_list[5]), np.array(error_sc_4dof_list[4]), np.array(error_sc_4dof_list[3]), np.array(error_sc_4dof_list[2]), np.array(error_sc_4dof_list[1]), np.array(error_sc_4dof_list[0])]
+
+    fig_speeds, ax1 = plt.subplots(1,4)
+    ax1[0].set_xlabel('x position error [cm]', color='k')
+    ax1[1].set_xlabel('y position error [cm]', color='k')
+    ax1[2].set_xlabel('Rotation error [deg]', color='k')
+    ax1[3].set_xlabel('Scale error', color='k')
+    res1 = ax1[0].boxplot(vec_x_pos_4dof, labels=labels, vert=False, showfliers=False,
+                        patch_artist=True, medianprops=medianprops)
+    res2 = ax1[1].boxplot(vec_y_pos_4dof, vert=False, showfliers=False,
+                        patch_artist=True, medianprops=medianprops)
+    res3 = ax1[2].boxplot(vec_rot_4dof, vert=False, showfliers=False,
+                    patch_artist=True, medianprops=medianprops)
+    res4 = ax1[3].boxplot(vec_sc_4dof, vert=False, showfliers=False,
+                    patch_artist=True, medianprops=medianprops)
+    for element in ['boxes', 'whiskers', 'fliers', 'means', 'medians', 'caps']:
+        plt.setp(res1[element], color='k')
+        plt.setp(res2[element], color='k')
+        plt.setp(res3[element], color='k')
+        plt.setp(res4[element], color='k')
+    ax1[1].set_yticklabels([])
+    ax1[1].set_yticks([])
+    ax1[2].set_yticklabels([])
+    ax1[2].set_yticks([])
+    ax1[3].set_yticklabels([])
+    ax1[3].set_yticks([])
+    ax1[0].set_xlim(-1,  10)
+    ax1[1].set_xlim(-1,  10)
+    ax1[2].set_xlim(-5,  45)
+    ax1[3].set_xlim(-0.01,  0.5)
+    ax1[1].xaxis.set_major_locator(plt.MaxNLocator(4))
+    plt.suptitle(shape+" 4dof motion")
+    # colors=[color_ekom, color_rgbde, color_ekom, color_rgbde, color_ekom, color_rgbde, color_ekom, color_rgbde, color_ekom, color_rgbde, color_ekom, color_rgbde]
+    # color='white'
+    # colors = [color, color, color, color, color, color,color, color,color, color,color, color]
+    # patterns=[0,1,0,1,0,1,0,1,0,1,0,1]
+    # for patch, color in zip(res1['boxes'], colors):
+    #     patch.set_facecolor(color)
+        # if pattern == 1:
+        #     patch.set(hatch = '/')
+    # for patch, color in zip(res2['boxes'], colors):
+    #     patch.set_facecolor(color)
+        # if pattern == 1:
+        #     patch.set(hatch = '/')
+    # ax1[1].legend([res1["boxes"][0], res1["boxes"][1]], ['EKOM', 'RGB-D-E'], loc='upper center', bbox_to_anchor=(0, -0.2),
+    #         fancybox=True, shadow=True, ncol=2)
+    fig_speeds.subplots_adjust(wspace=0)
+    plt.show()
+
+labels = ['\nS1','\nS2','\nS3','\nS4','\nS5','\nS6','\nS7','\nS8','\nS9', '\nS10']
+ticks=[0,1,2,3,4,5,6,7,8,9]
+medianprops = dict(color='white')
+
+vec_x_pos_shapes = [np.array(error_x_all_shapes[0]), np.array(error_x_all_shapes[1]), np.array(error_x_all_shapes[2]), np.array(error_x_all_shapes[3]), np.array(error_x_all_shapes[4]), np.array(error_x_all_shapes[5]), np.array(error_x_all_shapes[6]), np.array(error_x_all_shapes[7]), np.array(error_x_all_shapes[8]), np.array(error_x_all_shapes[9])]
+vec_y_pos_shapes = [np.array(error_y_all_shapes[0]), np.array(error_y_all_shapes[1]), np.array(error_y_all_shapes[2]), np.array(error_y_all_shapes[3]), np.array(error_y_all_shapes[4]), np.array(error_y_all_shapes[5]), np.array(error_y_all_shapes[6]), np.array(error_y_all_shapes[7]), np.array(error_y_all_shapes[8]), np.array(error_y_all_shapes[9])]
+vec_rot_shapes = [np.array(error_rot_all_shapes[0]), np.array(error_rot_all_shapes[1]), np.array(error_rot_all_shapes[2]), np.array(error_rot_all_shapes[3]), np.array(error_rot_all_shapes[4]), np.array(error_rot_all_shapes[5]), np.array(error_rot_all_shapes[6]), np.array(error_rot_all_shapes[7]), np.array(error_rot_all_shapes[8]), np.array(error_rot_all_shapes[9])]
+vec_sc_shapes = [np.array(error_sc_all_shapes[0]), np.array(error_sc_all_shapes[1]), np.array(error_sc_all_shapes[2]), np.array(error_sc_all_shapes[3]), np.array(error_sc_all_shapes[4]), np.array(error_sc_all_shapes[5]), np.array(error_sc_all_shapes[6]), np.array(error_sc_all_shapes[7]), np.array(error_sc_all_shapes[8]), np.array(error_x_all_shapes[9])]
+
+fig_shapes, ax = plt.subplots(1,4)
+ax[0].set_xlabel('x position error [cm]', color='k')
+ax[1].set_xlabel('y position error [cm]', color='k')
+ax[2].set_xlabel('Rotation error [deg]', color='k')
+ax[3].set_xlabel('Scale error', color='k')
+res1 = ax[0].boxplot(vec_x_pos_shapes, labels=labels, vert=False, showfliers=False,
+                    patch_artist=True, medianprops=medianprops)
+res2 = ax[1].boxplot(vec_y_pos_shapes, vert=False, showfliers=False,
+                    patch_artist=True, medianprops=medianprops)
+res3 = ax[2].boxplot(vec_rot_shapes, vert=False, showfliers=False,
+                patch_artist=True, medianprops=medianprops)
+res4 = ax[3].boxplot(vec_sc_shapes, vert=False, showfliers=False,
+                patch_artist=True, medianprops=medianprops)
+for element in ['boxes', 'whiskers', 'fliers', 'means', 'medians', 'caps']:
+    plt.setp(res1[element], color='k')
+    plt.setp(res2[element], color='k')
+    plt.setp(res3[element], color='k')
+    plt.setp(res4[element], color='k')
+ax[1].set_yticklabels([])
+ax[1].set_yticks([])
+ax[2].set_yticklabels([])
+ax[2].set_yticks([])
+ax[3].set_yticklabels([])
+ax[3].set_yticks([])
+ax[0].set_xlim(-1,  10)
+ax[1].set_xlim(-1,  10)
+ax[2].set_xlim(-5,  45)
+ax[3].set_xlim(-0.01,  0.5)
+ax[1].xaxis.set_major_locator(plt.MaxNLocator(4))
+# plt.suptitle(shape+" 4dof motion")
+# colors=[color_ekom, color_rgbde, color_ekom, color_rgbde, color_ekom, color_rgbde, color_ekom, color_rgbde, color_ekom, color_rgbde, color_ekom, color_rgbde]
+# color='white'
+# colors = [color, color, color, color, color, color,color, color,color, color,color, color]
+# patterns=[0,1,0,1,0,1,0,1,0,1,0,1]
+# for patch, color in zip(res1['boxes'], colors):
+#     patch.set_facecolor(color)
+    # if pattern == 1:
+    #     patch.set(hatch = '/')
+# for patch, color in zip(res2['boxes'], colors):
+#     patch.set_facecolor(color)
+    # if pattern == 1:
+    #     patch.set(hatch = '/')
+# ax1[1].legend([res1["boxes"][0], res1["boxes"][1]], ['EKOM', 'RGB-D-E'], loc='upper center', bbox_to_anchor=(0, -0.2),
+#         fancybox=True, shadow=True, ncol=2)
+fig_shapes.subplots_adjust(wspace=0)
 plt.show()
-
-flag_path = "open-loop_results/flag"
-flag_files = sorted([file for file in os.listdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), flag_path)) if file.endswith('.txt')])
-flag_data_list = []
-
-for f in tqdm(flag_files, "Loading flag shape data"):
-    flag_data = np.loadtxt(os.path.join(flag_path, f), delimiter=" ", skiprows=2)[:,:15] # delete the first two lines
-    flag_data_list.append(flag_data)
-
-flag_error_trans_x_list, interp_trans_x = compute_error(t_trans_x_list,gt_trans_x_list,arrow_data_list,12,3,320)
-flag_error_trans_y_list, interp_trans_y = compute_error(t_trans_y_list,gt_trans_y_list,arrow_data_list,18,4,240)
-flag_error_rot_list, interp_rot = compute_error(t_rot_list,gt_rot_list,arrow_data_list,0,5,0)
-flag_error_scale_list, interp_scale = compute_error(t_scale_list, gt_scale_list, arrow_data_list, 6, 6, 1)
-
-print(flag_error_trans_x_list)
-print(flag_error_trans_y_list)
-print(flag_error_rot_list)
-print(flag_error_scale_list)
-
-shapes=["arrow", "flag"]
-mean_rot_errors = [np.mean(arrow_error_rot_list), np.mean(flag_error_rot_list)]
-n_shapes = np.arange(len(shapes))
-
-fig_bar_plot, ax_bar_plot = plt.subplots()
-ax_bar_plot.bar(n_shapes, mean_rot_errors, align='center', ecolor='black', alpha=0.5, capsize=10)
-ax_bar_plot.set_ylabel('Rotation Error [deg]')
-ax_bar_plot.set_xlabel('Shape')
-ax_bar_plot.set_xticks(n_shapes)
-ax_bar_plot.set_xticklabels(shapes)
-ax_bar_plot.yaxis.grid(True)
-
-# for i in range(6):
-#     fig, ax1 = plt.subplots()
-
-#     color = 'tab:red'
-#     ax1.set_xlabel('time (s)')
-#     ax1.set_ylabel('affine x', color=color)
-#     ax1.plot(arrow_data_list[i+12][:,0], arrow_data_list[i+12][:,3], color=color)
-#     ax1.tick_params(axis='y', labelcolor=color)
-
-#     ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
-
-#     color = 'tab:blue'
-#     ax2.set_ylabel('gt x', color=color)  # we already handled the x-label with ax1
-#     ax2.plot(t_trans_x_list[i], gt_trans_x_list[i], color=color)
-#     ax2.tick_params(axis='y', labelcolor=color)
-
-#     fig.tight_layout()  # otherwise the right y-label is slightly clipped
-
-
-plt.show()
-
