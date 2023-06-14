@@ -17,6 +17,7 @@ public:
     double dt_not_read_events{0};
     double tic{-1};
     double dur{0};
+    double dt{0};
     int packet_events{0};
     int events_inside_roi{0}, n_events_eros_update{0};
 
@@ -24,7 +25,9 @@ public:
     {
         while (!input_port.isStopping()) {
             ev::info my_info = input_port.readAll(true);
+            static double t_eros_start = my_info.timestamp;
             tic = my_info.timestamp;
+            dt = tic - t_eros_start;
             dur = my_info.duration; 
             packet_events = my_info.count; 
             events_inside_roi = 0; 

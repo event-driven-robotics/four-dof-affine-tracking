@@ -18,7 +18,7 @@ private:
     double tau_latency{0};
     double dT{0}; 
     double recording_duration, elapsed_time{0}; 
-    float translation{2}, angle{0.1}, pscale{1.0001}, nscale{0.9999};
+    double translation{1.0}, angle{1.0}, pscale{1.001}, nscale{0.95};
     bool run{false};
     double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
     std::string filename; 
@@ -27,6 +27,7 @@ private:
     std::vector<double> gt_values;
     bool gt_sending{false}; 
     int gt_index{0};
+    double t_start_tracking{0};
 
     struct fake_latency{
         std::array<double, 4> state;
@@ -75,14 +76,14 @@ public:
     {
         // options and parameters
     
-        eros_k = rf.check("eros_k", Value(9)).asInt32();
-        eros_d = rf.check("eros_d", Value(0.5)).asFloat64();
+        eros_k = rf.check("eros_k", Value(11)).asInt32();
+        eros_d = rf.check("eros_d", Value(0.6)).asFloat64();
         if(!gt_sending)
             period = rf.check("period", Value(0.01)).asFloat64();
         else
             period = 0.001; 
         tau_latency=rf.check("tau", Value(0.0)).asFloat64();
-        recording_duration = rf.check("rec_time", Value(10000)).asFloat64();
+        recording_duration = rf.check("rec_time", Value(10)).asFloat64();
         filename = rf.check("shape-file", Value("/usr/local/src/affine2dtracking/shapes/star.png")).asString(); 
 
         // module name
@@ -161,6 +162,7 @@ public:
             // else{
                 static double start_time = eros_handler.tic; 
                 elapsed_time = eros_handler.tic - start_time;
+                // elapsed_time = eros_handler.dt -0.2;
 
                 // cv::Mat intersection_mat;
                 // cv::bitwise_and(affine_handler.eros_filtered(affine_handler.roi_around_shape), affine_handler.rot_scaled_tr_template(affine_handler.roi_around_shape),intersection_mat);
@@ -175,7 +177,7 @@ public:
                 // imshow("total", union_mat);
 
                 //cv::normalize(affine_handler.mexican_template_64f, norm_mexican, 1, 0, cv::NORM_MINMAX);
-                //imshow("MEXICAN ROI", affine_handler.mexican_template_64f+0.5);
+                // imshow("MEXICAN ROI", affine_handler.mexican_template_64f+0.5);
                 //imshow("TEMPLATE ROI", affine_handler.roi_template);
                 // imshow("EROS ROI", affine_handler.eros_tracked);
                 // cv::circle(eros_handler.eros.getSurface(), affine_handler.new_position, 2, 255, -1);
@@ -221,6 +223,10 @@ public:
 
         double tic = yarp::os::Time::now();
         while (!isStopping()) {
+
+            // if ((eros_handler.dt)>0.2&& !run){
+            //     run = true; 
+            // }
 
             if (run){
 
@@ -285,9 +291,9 @@ public:
         if(fs.is_open())
         {
             yInfo() << "Writing data";
-            fs << "tau="<<tau_latency<<"tr="<<std::to_string(translation) <<", theta="<< std::to_string(angle) <<", pscale="<< std::to_string(pscale) << ", nscale="<< std::to_string(nscale) <<std::endl;
-            fs << "proc_size="<<affine_handler.proc_size<<", mexican blur="<< std::to_string(affine_handler.blur) << ", eros decay="<< std::to_string(eros_d) <<", eros kernel="<<std::to_string(eros_k)<<", gaussian blur eros="<<std::to_string(affine_handler.gaussian_blur_eros)<<", eros buffer=0"<<std::endl;
-            fs << "shape scale="<< std::to_string(affine_handler.template_scale)<<", shape filename="<<filename<<std::endl; 
+            fs << "tau="<<tau_latency<<", tr="<<std::to_string(translation) <<", theta="<< std::to_string(angle) <<", pscale="<< std::to_string(pscale) << ", nscale="<< std::to_string(nscale) << ", scale_fact="<< std::to_string(affine_handler.sc_factor)<<", dynamic scale active="<< std::to_string(affine_handler.dynamic_scale)<<std::endl;
+            fs << "proc_size="<<affine_handler.proc_size<<", mexican blur="<< std::to_string(affine_handler.blur) << ", eros decay="<< std::to_string(eros_d) <<", eros kernel="<<std::to_string(eros_k)<<", gaussian blur eros="<<std::to_string(affine_handler.gaussian_blur_eros)<<", median blur active="<<std::to_string(affine_handler.median_blur_active)<<", median blur eros="<<std::to_string(affine_handler.median_blur_eros)<<", eros buffer="<<std::to_string(affine_handler.buffer_width)<<std::endl;
+            fs << "shape scale="<< std::to_string(affine_handler.template_scale)<<", shape blur="<< std::to_string(affine_handler.shape_blur_val)<<", canny 1="<< std::to_string(affine_handler.canny1)<<", canny 2="<< std::to_string(affine_handler.canny2)<<", sobel="<< std::to_string(affine_handler.sobel_value)<<", shape filename="<<filename<<std::endl; 
             for(auto i : data_to_save)
                 fs << std::setprecision(20) << i[0] << " " << i[1] << " " << i[2] << " " << i[3] << " "<<i[4]<< " "<<i[5]<<" "<<i[6]<<" "<<i[7]<<" "<<i[8]<<" "<<i[9]<<" "<<i[10]<<" "<<i[11]<< " " << i[12] << " " << i[13] << " "<<i[14]<<" "<<i[15]<<" "<<i[16]<<" "<<i[17]<<" "<<i[18]<<std::endl;
             fs.close();

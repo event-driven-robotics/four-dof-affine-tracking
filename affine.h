@@ -34,11 +34,20 @@ public:
     double translation, angle, pscale, nscale;
     cv::Point2d initial_position, new_position;
     cv::Point2d new_center; 
-    int blur{7};
-    int gaussian_blur_eros{5}; 
+    int blur{13};
+    int gaussian_blur_eros{3}; 
     double template_scale{0.4}; //0.4, 0.33
+    double sc_factor{0.2}; 
+    int shape_blur_val{7};
+    int buffer_width; 
+    int canny1{100}; 
+    int canny2{300};
+    int sobel_value{7};
+    double median_blur_eros{3}; 
+    bool median_blur_active{true}; 
+    bool dynamic_scale{true};
 
-    cv::Size proc_size{cv::Size(50, 50)};
+    cv::Size proc_size{cv::Size(80, 80)};
     cv::Rect proc_roi, o_proc_roi; 
     cv::Mat prmx, prmy, nrmx, nrmy;
     
@@ -116,9 +125,10 @@ public:
         affine_info[7].A = cv::getRotationMatrix2D(new_center, 0, nscale);
     }
 
-    void setROI(int buffer = 0){
+    void setROI(int buffer = 20){
 
         roi_resized = 0; 
+        buffer_width = buffer; 
         static cv::Rect2d full_roi = cv::Rect2d(cv::Point(0, 0), rot_scaled_tr_template.size());
 
         roi_around_shape = cv::boundingRect(rot_scaled_tr_template);
@@ -196,19 +206,20 @@ public:
     void loadTemplate(const cv::Size &res, std::string filename){
 
         cv::Mat shape_image = cv::imread(filename, 0);
+        // shape_image.convertTo(shape_image, CV_32F);
 
-        cv::resize(shape_image, shape_image, cv::Size(template_scale*shape_image.cols, template_scale*shape_image.rows), 0, 0,  cv::INTER_CUBIC); 
+        cv::resize(shape_image, shape_image, cv::Size(template_scale*shape_image.cols, template_scale*shape_image.rows), 0, 0,  cv::INTER_AREA); 
 
         // yInfo()<<template_scale*shape_image.cols<< template_scale*shape_image.rows;
 
         static cv::Mat shape_blur;
-        cv::GaussianBlur(shape_image, shape_blur, cv::Size(3,3),0,0);
+        cv::GaussianBlur(shape_image, shape_blur, cv::Size(shape_blur_val,shape_blur_val),0,0);
 
         // cv::Mat sobelxy;
         // cv::Sobel(shape_blur, sobelxy, CV_64F, 1, 1, 5);
 
         static cv::Mat edges;
-        cv::Canny(shape_blur, edges, 120, 120*3, 3, false);
+        cv::Canny(shape_blur, edges, canny1, canny2, sobel_value, false);
 
         initial_template = cv::Mat::zeros(res.height, res.width, CV_8UC1);
 
@@ -270,6 +281,9 @@ public:
 
         mexican_template.convertTo(mexican_template_64f, CV_64F);  // is 6 type CV_64FC1
 
+        pscale = double(roi_template.rows + 0.3)/double(roi_template.rows);
+        nscale = double(roi_template.rows - 0.3)/double(roi_template.rows);
+
         for (int affine = 0; affine < affine_info.size(); affine++) {
             cv::warpAffine(mexican_template_64f, affine_info[affine].warped_img, affine_info[affine].A, mexican_template_64f.size());
         }
@@ -282,6 +296,16 @@ public:
 
         // cv::Mat concat_affines; 
         mexican_resized.convertTo(mexican_template_64f, CV_64F);  // is 6 type CV_64FC1
+
+        if (dynamic_scale){
+            pscale = double(roi_template.rows + sc_factor)/double(roi_template.rows);
+            nscale = double(roi_template.rows - sc_factor)/double(roi_template.rows);
+        }
+
+        // yInfo()<<pscale<<nscale;
+
+        create_map_scale(pscale, 6);
+        create_map_scale(nscale, 7);
 
         for (int affine = 0; affine < affine_info.size()-1; affine++) {
             cv::remap(mexican_template_64f, affine_info[affine].warped_img, affine_info[affine].rmp, affine_info[affine].rmsp, cv::INTER_LINEAR);
@@ -313,9 +337,15 @@ public:
     {
         eros_resized = 0; 
         // cv::GaussianBlur(eros, eros_filtered, cv::Size(5, 5), 0);
-        // cv::Mat eros_blurred1; 
-        // cv::medianBlur(eros, eros_blurred1, 3);
-        cv::GaussianBlur(eros, eros_filtered, cv::Size(gaussian_blur_eros, gaussian_blur_eros), 0);
+        if (median_blur_active){
+            cv::Mat eros_blurred1; 
+            cv::medianBlur(eros, eros_blurred1, median_blur_eros);
+            cv::GaussianBlur(eros_blurred1, eros_filtered, cv::Size(gaussian_blur_eros, gaussian_blur_eros), 0);
+        }
+        else{
+            cv::GaussianBlur(eros, eros_filtered, cv::Size(gaussian_blur_eros, gaussian_blur_eros), 0);
+        }
+
         eros_filtered(roi_around_shape).copyTo(eros_tracked);
         eros_tracked.convertTo(eros_tracked_64f, CV_64F, 0.003921569); 
 
