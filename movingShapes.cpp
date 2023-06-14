@@ -5,6 +5,7 @@ using namespace yarp::os;
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
+#include <random>
 
 class objectPos: public yarp::os::RFModule
 {
@@ -12,18 +13,23 @@ private:
     int w, h, shape_w, shape_h, motion_type;
     double period{0.1};
     std::string background_filename, shape_filename, output_filepath;
+    bool background_dynamic{false}, sinusoid{false}; 
 
-    cv::Point initial_position, new_position;
+    cv::Point2d initial_position, new_position;
 
-    cv::Mat shape_image, shift_right, shift_left, moved_shape, color_shape_image;
-    int sum_tx{0}, sum_ty{0};
+    cv::Mat shape_image, shift_right, shift_left, moved_shape, color_shape_image, warped_background;
+    double sum_tx{0}, sum_ty{0};
     double sum_rot{0.0}, sum_sc{0.0}, tot_sc{1.0};
     bool change_direction{false};
     int count{0}, count_pass_by_origin{0};
-    cv::Mat background_image, resized_background, shape, local_background, current_background, cut, black_background, local_black_background, init_shape_image;
-    cv::Rect mask, new_mask; 
+    cv::Mat background_image, moving_background, resized_background, shape, local_background, current_background, cut, black_background, local_black_background, init_shape_image, warped_shifted_background;
+    cv::Rect2d mask, new_mask, background_rect; 
     bool first_time{true}; 
     double perc{0.2};
+    int counter_angle{0}, counter_sine{0}; 
+    std::vector<double> random_x, random_y, angles_circle, time_sinusoid, x_sinusoidal, y_sinusoidal, theta_sinusoidal, sc_sinusoidal;
+
+    std::ofstream gt_file;
 
     cv::Mat updateTrMat(double translation_x, double translation_y){
 
@@ -95,8 +101,10 @@ public:
         perc = rf.check("perc", Value(0.2)).asFloat64();
         background_filename = rf.check("shape-file", Value("/usr/local/src/affine2dtracking/desk_background.jpg")).asString(); 
         shape_filename = rf.check("background-file", Value("/usr/local/src/affine2dtracking/shapes/star.png")).asString(); 
-        output_filepath = rf.check("output-path", Value("/data/star_filled/combined_motions")).asString(); 
-        motion_type = rf.check("motion", Value(5)).asInt32();  // 1-> tx, 2-> ty, 3-> rot, 4-> scale, 5-> combined
+        output_filepath = rf.check("output-path", Value("/data/moving_background/star/combined_motions")).asString(); 
+        motion_type = rf.check("motion", Value(5)).asInt32(); // 1-> tx, 2-> ty, 3-> rot, 4-> scale, 5-> combined
+        background_dynamic = rf.check("back_dynamic", Value(true)).asBool(); 
+        sinusoid = rf.check("sin", Value(false)).asBool(); 
 
         // module name
         setName((rf.check("name", Value("/object_position")).asString()).c_str());
@@ -119,10 +127,9 @@ public:
         if (motion_type == 5)
             cv::copyMakeBorder( init_shape_image, init_shape_image, 50, 50, 50, 50, cv::BORDER_CONSTANT, 0 );
 
-        cv::cvtColor(shape_image, color_shape_image, cv::COLOR_GRAY2RGB);
-
         // background_image = 0; ///uncomment to have black background
         cv::resize(background_image, resized_background, cv::Size(w,h)); 
+        cv::resize(background_image, moving_background, cv::Size(w+200,h+200)); 
 
         initial_position.x = resized_background.cols/2;
         initial_position.y = resized_background.rows/2;
@@ -138,7 +145,7 @@ public:
         waypoints.push_back({320.0, 30.0, -22.0, 0.9, 0.0});
         waypoints.push_back({600.0, 100.0, -22.0, 0.8, 0.0});
         waypoints.push_back({100.0, -200.0, -10.0, 1, 0.0});
-        waypoints.push_back({-200.0, -300.0, 20.0, 1.2, 0.0});
+        waypoints.push_back({-200.0, -250.0, 20.0, 1.2, 0.0});
         waypoints.push_back({-400.0, 50.0, 10.0, 0.95, 0.0});
         waypoints.push_back({-550.0, 200.0, 5.0, 0.9, 0.0});
         waypoints.push_back({-300.0, 150.0, 2.0, 1.1, 0.0});
@@ -152,51 +159,135 @@ public:
             std::cout << i << std::endl;
         std::cout << std::endl;
 
+        gt_file.open("../gt_combined_motions.txt");
+            if (!gt_file.is_open()) {
+                yError() << "Could not open output file";
+                return false;
+        }
+
+        if (background_dynamic){
+            angles_circle = createArray(0, 360, 0.1); 
+            int radius = 100;
+            for( int i = 0; i < angles_circle.size(); i ++ ){
+                random_x.push_back(radius*cos(angles_circle[i]*M_PI/180));
+                random_y.push_back(radius*sin(angles_circle[i]*M_PI/180));
+            }
+        }
+
+        time_sinusoid = createArray(0, 1, 0.0002); 
+        double frequency = 1;
+        for( int i = 0; i < time_sinusoid.size(); i ++ ){
+            x_sinusoidal.push_back(((w-shape_image.cols)/2)*sin(2*M_PI*frequency*time_sinusoid[i]));            
+            y_sinusoidal.push_back(((h-shape_image.rows)/2)*sin(2*M_PI*frequency*time_sinusoid[i]));
+            theta_sinusoidal.push_back(90*sin(2*M_PI*frequency*time_sinusoid[i]));
+            sc_sinusoidal.push_back(0.5+sin(2*M_PI*frequency*time_sinusoid[i]));
+        }
+
+        // yInfo()<<x_sinusoidal;
+        // yInfo()<<" "; 
+        // yInfo()<<y_sinusoidal; 
+        // yInfo()<<" "; 
+        // yInfo()<<theta_sinusoidal; 
+        // yInfo()<<" "; 
+        // yInfo()<<sc_sinusoidal; 
+
         return true;
+    }
+
+    double fRand(double fMin, double fMax)
+    {
+        double f = (double)rand() / RAND_MAX;
+        return fMin + f * (fMax - fMin);
+    }
+
+    std::vector<double> createArray( int min, int max, double step )
+    {
+        std::vector<double> array;
+        for( double i = min; i <= max; i += step )
+        {
+            array.push_back( i );
+        }
+        return array;
     }
 
     bool updateModule(){
 
         if(motion_type!=5){
-            if (!change_direction){
-                if (motion_type==1)
-                    sum_tx += 1;
-                if (motion_type==2)
-                    sum_ty += 1;
-                if (motion_type==3)
-                    sum_rot += 0.3; 
-                if (motion_type==4)
-                    tot_sc = tot_sc*1.001;
-                    // sum_sc += 0.05;
+
+        }
+
+        black_background.copyTo(local_black_background); 
+
+        if (counter_sine<time_sinusoid.size()){
+            counter_sine++; 
+        }
+        else{
+            counter_sine=0; 
+        }
+
+        if (sinusoid){
+
+            if (motion_type == 1){
+                new_position.x = initial_position.x + x_sinusoidal[counter_sine]; 
+                new_position.y = h/2;
+            }
+            else if (motion_type == 2){
+                new_position.y = initial_position.y + y_sinusoidal[counter_sine]; 
+                new_position.x = w/2;
+            }
+            else if (motion_type == 3 || motion_type == 4){
+                new_position.x = w/2;
+                new_position.y = h/2;
             }
             else{
-                if (motion_type==1)
-                    sum_tx -= 1;
-                if (motion_type==2)
-                    sum_ty -= 1;
-                if (motion_type==3) 
-                    sum_rot -= 0.3;
-                if (motion_type==4)
-                    tot_sc = tot_sc*0.999;
-                    // sum_sc -= 0.05; 
+                sum_tx = interpolated[count].x;
+                sum_ty = interpolated[count].y;
+                sum_rot = interpolated[count].d;
+                tot_sc = interpolated[count].s;
+
+                new_position.x = initial_position.x + sum_tx; 
+                new_position.y = initial_position.y + sum_ty; 
             }
         }
         else{
-            sum_tx = interpolated[count].x;
-            sum_ty = interpolated[count].y;
-            sum_rot = interpolated[count].d;
-            tot_sc = interpolated[count].s;
+            
+            if (motion_type!=5){
+                if (!change_direction){
+                    if (motion_type==1)
+                        sum_tx += 1;
+                    if (motion_type==2)
+                        sum_ty += 1;
+                    if (motion_type==3)
+                        sum_rot += 0.3; 
+                    if (motion_type==4)
+                        tot_sc = tot_sc*1.001;
+                }
+                else{
+                    if (motion_type==1)
+                        sum_tx -= 1;
+                    if (motion_type==2)
+                        sum_ty -= 1;
+                    if (motion_type==3) 
+                        sum_rot -= 0.3;
+                    if (motion_type==4)
+                        tot_sc = tot_sc*0.999;
+                }
+            }
+            else{
+                sum_tx = interpolated[count].x;
+                sum_ty = interpolated[count].y;
+                sum_rot = interpolated[count].d;
+                tot_sc = interpolated[count].s;
+            }
+
+
+            new_position.x = initial_position.x + sum_tx; 
+            new_position.y = initial_position.y + sum_ty; 
         }
-
-        new_position.x = initial_position.x + sum_tx; 
-        new_position.y = initial_position.y + sum_ty; 
-
-        black_background.copyTo(local_black_background); 
 
         cv::Mat rot_mat = cv::getRotationMatrix2D(cv::Point2d(init_shape_image.cols/2, init_shape_image.rows/2), sum_rot, tot_sc);
         cv::Mat warped_shape_image;
         warpAffine(init_shape_image, warped_shape_image, rot_mat, warped_shape_image.size());
-        // cv::resize(init_shape_image, warped_shape_image, cv::Size(warped_shape_image.cols+sum_sc, warped_shape_image.rows+sum_sc), 0, 0, cv::INTER_LINEAR);
 
         new_mask = cv::Rect(new_position.x - warped_shape_image.cols/2, new_position.y - warped_shape_image.rows/2, warped_shape_image.cols, warped_shape_image.rows); 
 
@@ -206,7 +297,35 @@ public:
         std::vector<cv::Vec4i> hierarchy;
         findContours( local_black_background, contours, hierarchy,cv::RETR_CCOMP, cv::CHAIN_APPROX_SIMPLE );
 
-        resized_background.copyTo(current_background); 
+        if (background_dynamic){
+            if (counter_angle<angles_circle.size()){
+                counter_angle++; 
+            }
+            else{
+                counter_angle=0; 
+            }
+            // yInfo()<<random_x[counter_angle]<<random_y[counter_angle];
+
+            // int random_x = rand() % 3 + (-1);
+            // int random_y = rand() % 3 + (-1);
+            // double random_rot = fRand(-0.2, 0.2);
+            double random_rot = 0; 
+            // double random_sc = fRand(0.98, 1.02);
+            double random_sc = 1; 
+
+            // yInfo()<<"ramdom val="<<random_x<<random_y<<random_rot<<random_sc; 
+
+            cv::Mat random_rot_mat = cv::getRotationMatrix2D(cv::Point2d(moving_background.cols/2, moving_background.rows/2), random_rot, random_sc);
+            random_rot_mat.at<double>(0,2) += (random_x[counter_angle]);
+            random_rot_mat.at<double>(1,2) += (random_y[counter_angle]);
+            warpAffine(moving_background, warped_background, random_rot_mat, warped_background.size());
+
+            background_rect = cv::Rect(warped_background.cols/2 -w/2, warped_background.rows/2-h/2, w, h);
+            warped_background(background_rect).copyTo(current_background);
+        }
+        else{
+            resized_background.copyTo(current_background); 
+        }
 
         // iterate through all the top-level contours,
         // draw each connected component with its own random color
@@ -217,12 +336,12 @@ public:
             drawContours( current_background, contours, idx, color, cv::FILLED, 8, hierarchy );
         }
 
-        if(((sum_tx >= w/2-shape_image.cols/2) || (sum_ty >= h/2-shape_image.rows/2) || sum_rot > 91 || sum_sc > 6 || tot_sc>1.5)&& !change_direction){ // (sum_sc) > 25
+        if(((sum_tx >= w/2-shape_image.cols/2) || (sum_ty >= h/2-shape_image.rows/2) || sum_rot > 91 || tot_sc>1.5)&& !change_direction){ // (sum_sc) > 25
             change_direction = true;
             yInfo() << "direction changed";
             sum_sc = 0;
         }
-        else if ((sum_tx <= -(w/2-shape_image.cols/2)|| (sum_ty <= -(h/2-shape_image.rows/2)) || sum_rot<-91 || sum_sc < -6 || tot_sc<0.5) && change_direction){ // (sum_sc) < -25
+        else if ((sum_tx <= -(w/2-shape_image.cols/2)|| (sum_ty <= -(h/2-shape_image.rows/2)) || sum_rot<-91 || tot_sc<0.5) && change_direction){ // (sum_sc) < -25
             change_direction = false;
             yInfo() << "direction changed";
             sum_sc = 0;
@@ -243,18 +362,20 @@ public:
             imwrite(output_filepath+"/image-"+std::to_string(count)+".jpg", current_background);
 
         count++;
+
+        gt_file<<sum_tx<<" "<<sum_ty<<" "<<tot_sc<<" "<<sum_rot<<std::endl;
+
         // yInfo()<<count<<new_position.x<<count_pass_by_origin; 
 
         // CODE TO STOP WHEN FIRST LOOP ENDED
 
         if (motion_type != 5){
             if (motion_type == 1){
-                    std::cout<<sum_tx<<" "; 
                     if (new_position.x == w/2){
                         if (count_pass_by_origin==1)
                             return false; 
                         count_pass_by_origin++; 
-                        yInfo()<<"hey"; 
+                        yInfo()<<"hey"<<new_position.x; 
                     }
                 }
         
@@ -279,9 +400,6 @@ public:
                 }
 
                 if (motion_type == 4){
-                    // if (sum_sc < -5.95){
-                    //     return false; 
-                    // }
 
                     std::cout<<tot_sc<<" "; 
                     if (tot_sc < 1.001 && tot_sc > 1){
@@ -293,7 +411,7 @@ public:
                 }
         }
         else{
-            if (count > interpolated.size() -1)
+            if (count > interpolated.size() - 1)
                 return false; 
         }
 
@@ -309,7 +427,7 @@ public:
     }
 
     bool close() override {
-
+        gt_file.close(); 
         return true;
     }
 };
