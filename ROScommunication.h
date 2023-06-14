@@ -51,7 +51,7 @@ public:
         // }
     }
 
-    void publishTargetPos(cv::Size resolution, int u, int v, double theta, double sc){
+    void publishTargetPos(cv::Size resolution, double u, double v, double theta, double sc){
 
         double u_ref = resolution.width/2;
         double v_ref = resolution.height/2;
