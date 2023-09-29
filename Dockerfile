@@ -128,5 +128,5 @@ RUN cd $SOURCE_FOLDER &&\
     cmake .. &&\
     make -j `nproc` install
     
-RUN cd $SOURCE_FOLDER &&\
-    git clone https://github.com/lunagava/affine2dtracking.git
+#RUN cd $SOURCE_FOLDER &&\
+#    git clone https://github.com/lunagava/affine2dtracking.git
