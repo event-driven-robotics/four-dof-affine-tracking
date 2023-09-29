@@ -5,6 +5,7 @@ from tqdm import tqdm
 import matplotlib 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter, AutoMinorLocator
+from scipy import interpolate
 
 params = {'xtick.labelsize': 24,
           'ytick.labelsize': 24,
@@ -73,35 +74,33 @@ n_trans_y_speeds = np.arange(len(trans_y_speeds))
 n_rot_speeds = np.arange(len(rot_speeds))
 n_scale_speeds = np.arange(len(scale_speeds))
 
-color_bar = ['blue', 'skyblue', 'darkcyan']
-
 fig, ax = plt.subplots()
-ax.bar(n_rot_speeds, mean_rot_errors, align='center', ecolor='black', alpha=0.5, capsize=10)
-ax.set_ylabel('Rotation Error [deg]')
+ax.bar(n_rot_speeds, mean_rot_errors, align='center', ecolor='black', alpha=0.5, capsize=10, color='tab:green')
+ax.set_ylabel('Rotation Error \n [deg]')
 ax.set_xlabel('Target Speed [Hz]')
 ax.set_xticks(n_rot_speeds)
 ax.set_xticklabels(rot_speeds)
 ax.yaxis.grid(True)
 
 fig, ax = plt.subplots()
-ax.bar(n_scale_speeds, mean_scale_errors, align='center', ecolor='black', alpha=0.5, capsize=10)
+ax.bar(n_scale_speeds, mean_scale_errors, align='center', ecolor='black', alpha=0.5, capsize=10, color='tab:red')
 ax.set_ylabel('Scale Error')
-ax.set_xlabel('Target Speed [Hz]')
+ax.set_xlabel('Target Speed \n [Hz]')
 ax.set_xticks(n_scale_speeds)
 ax.set_xticklabels(scale_speeds)
 ax.yaxis.grid(True)
 
 fig, ax = plt.subplots()
-ax.bar(n_trans_x_speeds, mean_trans_x_errors, align='center', ecolor='black', alpha=0.5, capsize=10)
-ax.set_ylabel('Translation Error x [pix]')
+ax.bar(n_trans_x_speeds, mean_trans_x_errors, align='center', ecolor='black', alpha=0.5, capsize=10, color='tab:blue')
+ax.set_ylabel('Translation Error x \n [pix]')
 ax.set_xlabel('Target Speed [Hz]')
 ax.set_xticks(n_trans_x_speeds)
 ax.set_xticklabels(trans_x_speeds)
 ax.yaxis.grid(True)
 
 fig, ax = plt.subplots()
-ax.bar(n_trans_y_speeds, mean_trans_y_errors, align='center', ecolor='black', alpha=0.5, capsize=10)
-ax.set_ylabel('Translation Error y [pix]')
+ax.bar(n_trans_y_speeds, mean_trans_y_errors, align='center', ecolor='black', alpha=0.5, capsize=10, color='tab:orange')
+ax.set_ylabel('Translation Error y \n [pix]')
 ax.set_xlabel('Target Speed [Hz]')
 ax.set_xticks(n_trans_y_speeds)
 ax.set_xticklabels(trans_y_speeds)
@@ -201,35 +200,48 @@ for idx, x in enumerate(exp2_data_list):
 
     if (idx>=28 and idx<32):
         latency_35_mean_error.append(np.mean(abs(exp2_data_list[idx][:, 3]-320)))
-        ax_error_time_latency_35[idx-28].plot(exp2_data_list[idx][:, 0], exp2_data_list[idx][:, 3]-320, label="speed #"+str(idx+1-28))
+        ax_error_time_latency_35[idx-28].plot(exp2_data_list[idx][:, 0], exp2_data_list[idx][:, 3]-320, label="35 ms")
+        ax_error_time_latency_35[idx-28].plot(exp2_data_list[idx-28][:, 0], exp2_data_list[idx-28][:, 3]-320, label="0 ms")
+        f = interpolate.interp1d(exp2_data_list[idx-28][:, 0], exp2_data_list[idx-28][:, 3]-320, kind='nearest',fill_value="extrapolate")
+        y_0_28 = f(exp2_data_list[idx][:, 0])
+        diff_0_35_lat = abs(exp2_data_list[idx][:, 3]-320 - y_0_28)
+        mean_diff_0_35_lat = np.mean(diff_0_35_lat)
+        # max_diff = 
+        index_time_failure_35 = next(x for x, val in enumerate(diff_0_35_lat) if val > (mean_diff_0_35_lat))
+        ax_error_time_latency_35[idx-28].axhline(y = mean_diff_0_35_lat, color = 'k')
+        ax_error_time_latency_35[idx-28].axvline(x = exp2_data_list[idx][index_time_failure_35, 0], color = 'r')
+        ax_error_time_latency_35[idx-28].plot(exp2_data_list[idx][:, 0], diff_0_35_lat, label="error")
         plt.setp(ax_error_time_latency_35[-1], xlabel='Time [s]')
         plt.setp(ax_error_time_latency_35[:], ylabel='Error [pix]')
         ax_error_time_latency_35[idx-28].legend(loc="upper right")
-        ax_error_time_latency_35[idx-28].set_title("Latency = 35 ms")
+        ax_error_time_latency_45[idx-28].set_title("speed #"+str(idx+1-28))
 
     if (idx>=32 and idx<36):
         latency_40_mean_error.append(np.mean(abs(exp2_data_list[idx][:, 3]-320)))
-        ax_error_time_latency_40[idx-32].plot(exp2_data_list[idx][:, 0], exp2_data_list[idx][:, 3]-320, label="speed #"+str(idx+1-32))
+        ax_error_time_latency_40[idx-32].plot(exp2_data_list[idx][:, 0], exp2_data_list[idx][:, 3]-320, label="40 ms")
+        ax_error_time_latency_40[idx-32].plot(exp2_data_list[idx-32][:, 0], exp2_data_list[idx-32][:, 3]-320, linestyle='dashed', label="0 ms")
         plt.setp(ax_error_time_latency_40[-1], xlabel='Time [s]')
         plt.setp(ax_error_time_latency_40[:], ylabel='Error [pix]')
         ax_error_time_latency_40[idx-32].legend(loc="upper right")
-        ax_error_time_latency_40[idx-32].set_title("Latency = 40 ms")
+        ax_error_time_latency_40[idx-32].set_title("speed #"+str(idx+1-32))
 
     if (idx>=36 and idx<40):
         latency_45_mean_error.append(np.mean(abs(exp2_data_list[idx][:, 3]-320)))
-        ax_error_time_latency_45[idx-36].plot(exp2_data_list[idx][:, 0], exp2_data_list[idx][:, 3]-320, label="speed #"+str(idx+1-36))
+        ax_error_time_latency_45[idx-36].plot(exp2_data_list[idx][:, 0], exp2_data_list[idx][:, 3]-320, label="45 ms")
+        ax_error_time_latency_45[idx-36].plot(exp2_data_list[idx-36][:, 0], exp2_data_list[idx-36][:, 3]-320, linestyle='dashed', label = "0 ms")
         plt.setp(ax_error_time_latency_45[-1], xlabel='Time [s]')
         plt.setp(ax_error_time_latency_45[:], ylabel='Error [pix]')
         ax_error_time_latency_45[idx-36].legend(loc="upper right")
-        ax_error_time_latency_45[idx-36].set_title("Latency = 45 ms")
+        ax_error_time_latency_45[idx-36].set_title("speed #"+str(idx+1-36))
 
     if (idx>=40 and idx<44):
         latency_50_mean_error.append(np.mean(abs(exp2_data_list[idx][:, 3]-320)))
-        ax_error_time_latency_50[idx-40].plot(exp2_data_list[idx][:, 0], exp2_data_list[idx][:, 3]-320, label="speed #"+str(idx+1-40))
+        ax_error_time_latency_50[idx-40].plot(exp2_data_list[idx][:, 0], exp2_data_list[idx][:, 3]-320, label="50 ms")
+        ax_error_time_latency_50[idx-40].plot(exp2_data_list[idx-40][:, 0], exp2_data_list[idx-40][:, 3]-320, linestyle='dashed', label="0 ms")
         plt.setp(ax_error_time_latency_50[-1], xlabel='Time [s]')
         plt.setp(ax_error_time_latency_50[:], ylabel='Error [pix]')
         ax_error_time_latency_50[idx-40].legend(loc="upper right")
-        ax_error_time_latency_50[idx-40].set_title("Latency = 50 ms")
+        ax_error_time_latency_50[idx-40].set_title("speed #"+str(idx+1-40))
 
 plt.legend()
 
