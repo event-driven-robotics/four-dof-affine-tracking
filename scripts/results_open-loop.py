@@ -28,6 +28,7 @@ color_yellow = '#FFA62B'
 w = 1920 
 h = 1080
 data_recording_time = 10
+first_time_plot = True
 
 def load_ground_truth(filename):
     groud_truth_combined_motions = np.loadtxt(filename, delimiter=" ")
@@ -131,6 +132,8 @@ def compute_scale_vector():
 
     return scale_array
 
+fig_4dof, ax_4dof = plt.subplots(2,2, figsize = (15,8))
+
 def compute_error(t_list, gt_list, shape_list, motion_index, column_state, reference, shape):
 
     error_list = []
@@ -173,6 +176,34 @@ def compute_error(t_list, gt_list, shape_list, motion_index, column_state, refer
                 ax_error[i//3, i%3].set_title("speed #"+str(i))
                 ax_error[i//3, i%3].legend(loc="upper right")
             
+            if shape=='star':
+                if (motion_index+i == 5):
+                    if column_state == 3:
+                        ax_4dof[0,0].plot(times,diff, label = 'error')
+                        ax_4dof[0,0].plot(times,y_, label = 'tracked')
+                        ax_4dof[0,0].plot(times,gt_list[i], label = 'gt')
+                        ax_4dof[0,0].legend(bbox_to_anchor=(0.12, 1.02, 0, 0.2), loc='lower left', ncol=3)
+                        ax_4dof[0,0].set(ylabel="X position [cm]")
+                    if column_state == 4:
+                        ax_4dof[0,1].plot(times,diff, label = 'error')
+                        ax_4dof[0,1].plot(times,y_, label = 'tracked')
+                        ax_4dof[0,1].plot(times,gt_list[i], label = 'gt')
+                        ax_4dof[0,1].legend(bbox_to_anchor=(0.12, 1.02, 0, 0.2), loc='lower left', ncol=3)
+                        ax_4dof[0,1].set(ylabel="Y position [cm]")
+                    if column_state == 5:
+                        ax_4dof[1,0].plot(times,diff, label = 'error')
+                        ax_4dof[1,0].plot(times,y_, label = 'tracked')
+                        ax_4dof[1,0].plot(times,gt_list[i], label = 'gt')
+                        ax_4dof[1,0].set(ylabel="Orientation [deg]")
+
+                    if column_state == 6:
+                        ax_4dof[1,1].plot(times,diff, label = 'error')
+                        ax_4dof[1,1].plot(times,y_, label = 'tracked')
+                        ax_4dof[1,1].plot(times,gt_list[i], label = 'gt')
+                        ax_4dof[1,1].set(ylabel="Scale")
+
+                
+
         if plot_qualitative:
             plt.setp(ax_error[-1], xlabel='Time [s]')
             if (column_state == 3):
@@ -203,6 +234,48 @@ def compute_error(t_list, gt_list, shape_list, motion_index, column_state, refer
 
     return error_list
 
+def compute_error_partial(t_list, x_gt_list, y_gt_list, t_track_list, x_track_list, y_track_list, H_list):
+    error_list = []
+
+    for idx in range(len(t_list)):
+        u_track = []
+        v_track = []
+        u_gt = []
+        v_gt = []
+        for i in range(len(x_track_list[idx])):
+            if(idx==0):
+                coord_camera_plane_track = np.array([-x_track_list[idx][i,3]+1920/2,y_track_list[idx][i,4]-1080/2, 1])
+            else:
+                coord_camera_plane_track = np.array([x_track_list[idx][i,3]-1920/2,y_track_list[idx][i,4]-1080/2, 1])
+            result_track = np.matmul(np.linalg.inv(H_list[idx]), coord_camera_plane_track)
+
+            u_track.append(result_track[0]/result_track[2])
+            v_track.append(result_track[1]/result_track[2])
+
+        for j in range(len(x_gt_list[idx])):
+            coord_camera_plane_gt = np.array([x_gt_list[idx][j],y_gt_list[idx][j], 1])
+            result_gt = np.matmul(np.linalg.inv(H_list[idx]), coord_camera_plane_gt)
+
+            u_gt.append(result_gt[0]/result_gt[2])
+            v_gt.append(result_gt[1]/result_gt[2])
+
+
+        f = interpolate.interp1d(t_track_list[idx][:,0], u_track, kind='nearest',fill_value="extrapolate")
+
+        y_ = f(t_list[idx])
+                
+        diff = abs(y_ - u_gt)
+
+        meanerror = np.mean(diff)
+        error_list.append(meanerror)
+
+        plt.figure()
+        plt.plot(t_list[idx], u_gt,color='r')
+        plt.plot(t_list[idx], y_, color='b')
+        plt.show()      
+    
+    return error_list
+
 def computeEuclideanDistance(errors_x_list, errors_y_list):
     distances = []
     for i in range(len(errors_x_list)):
@@ -210,17 +283,22 @@ def computeEuclideanDistance(errors_x_list, errors_y_list):
 
     return distances
 
-ground_truth_trans_x = np.hstack((np.arange(1, 768+1, 1), np.arange(767, -769, -1), np.arange(-767, 1, 1)))
-ground_truth_trans_x = np.divide(ground_truth_trans_x, 1920)*32.51
 speeds_trans_x = [240,480,720,960,1200,1440]
+ground_truth_trans_x = np.hstack((np.arange(1, 768+1, 1), np.arange(767, -769, -1), np.arange(-767, 1, 1)))
+gt_trans_x_list_pix, t_trans_x_list_pix = generate_ground_truth(speeds_trans_x, ground_truth_trans_x)
+ground_truth_trans_x = np.divide(ground_truth_trans_x, 1920)*32.51
 gt_trans_x_list, t_trans_x_list = generate_ground_truth(speeds_trans_x, ground_truth_trans_x)
+
 ground_truth_trans_x_y = []
 ground_truth_trans_x_rot = []
 ground_truth_trans_x_sc = []
+ground_truth_trans_x_y_monitor = []
 for idx, value in enumerate(gt_trans_x_list):
     ground_truth_trans_x_y.append((18.29/2)*np.ones(len(value)))
+    ground_truth_trans_x_y_monitor.append((1080/2)*np.ones(len(value)))
     ground_truth_trans_x_rot.append(np.zeros(len(value)))
     ground_truth_trans_x_sc.append(np.ones(len(value)))
+
 
 ground_truth_trans_y = np.hstack((np.arange(1, 349, 1), np.arange(347, -349, -1), np.arange(-347, 1, 1)))
 ground_truth_trans_y = np.divide(ground_truth_trans_y, 1080)*18.29
@@ -257,7 +335,7 @@ for idx, value in enumerate(gt_scale_list):
     ground_truth_scale_y.append((18.29/2)*np.ones(len(value)))
     ground_truth_scale_rot.append(np.zeros(len(value)))
 
-ground_truth_combined = load_ground_truth("gt_combined_motions.txt")
+ground_truth_combined = load_ground_truth("/usr/local/src/affine2dtracking/gt_comb/gt_combined_motions.txt")
 speed_combined = [100,200,300,400,600,800]
 
 gt_comb_speeds = []
@@ -293,19 +371,20 @@ error_dist_all_shapes = []
 error_rot_all_shapes = []
 error_sc_all_shapes = []
 
-shape_names = ['arrow', 'flag', 'oval', 'pacman', 'puzzle', 'square', 'star', 'triangle']
+shape_names = ['star', 'flag', 'oval', 'pacman', 'puzzle', 'square', 'star', 'triangle']
 
 for idx_shape, shape in enumerate(shape_names):
-    shape_path = "open-loop_results/"+shape
+    shape_path = "/usr/local/src/affine2dtracking/results/open-loop_results/"+shape
     shape_files = sorted([file for file in os.listdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), shape_path)) if file.endswith('.txt')])
     shape_data_list = []
+    shape_data_list_pix = []
 
     H_list = []
 
     for f in tqdm(shape_files, "Loading " + shape + " data"):
 
         lines = []
-        with open(os.path.join("open-loop_results/arrow/homography/homography.txt")) as linefile:
+        with open(os.path.join("/usr/local/src/affine2dtracking/results/open-loop_results/arrow/homography/homography.txt")) as linefile:
             for row in range(3):
                 line = linefile.readline().strip('\n')
                 line_list = list(map(float, line.split(' ')))
@@ -315,6 +394,7 @@ for idx_shape, shape in enumerate(shape_names):
 
         shape_data = np.loadtxt(os.path.join(shape_path, f), delimiter=" ", skiprows=3)[:,:15] # delete the first six lines
         shape_data_list.append(shape_data)
+        shape_data_list_pix.append(shape_data)
 
     for idx_global, x_global in enumerate(shape_data_list):
 
@@ -324,6 +404,21 @@ for idx_shape, shape in enumerate(shape_names):
         y_cm = []
         rot_comb = []
         sc_comb = []
+
+        u_gt_image_plane = []
+        v_gt_image_plane = []
+
+        # if shape == "star":
+        #     if idx_global>=18 and idx_global<24:
+        #         for idx_plane, x_plane in enumerate(copy_gt_trans_x_list[idx_global-18]):
+        #             gt_monitor_plane = np.array([x_plane, ground_truth_trans_x_y_monitor[idx_plane], 1])
+        #             result_plane = np.matmul(np.linalg.inv(H_list[idx_global]), gt_monitor_plane)
+
+        #             u_gt_image_plane.append(result_plane[0]/result_plane[2])
+        #             v_gt_image_plane.append(result_plane[1]/result_plane[2])            
+            
+        #         copy_gt_trans_x_list[idx_global-18] = u_gt_image_plane
+        #         ground_truth_trans_x_y_monitor[idx_global-18] = v_gt_image_plane 
 
         for idx, x in enumerate(x_global):
             coord_camera_plane = np.array([x_global[idx][3],x_global[idx][4], 1])
@@ -340,6 +435,10 @@ for idx_shape, shape in enumerate(shape_names):
             shape_data_list[idx_global][idx][3] = np.divide(result[0]/result[2],1920)*32.51
             shape_data_list[idx_global][idx][4] = np.divide(result[1]/result[2],1080)*18.29
 
+        if (idx_global>=18 and idx_global<24):
+            shape_data_list_pix[idx_global][:,3] = u_monitor_plane
+            shape_data_list_pix[idx_global][:,4] = v_monitor_plane
+
     error_x_4dof_list = compute_error(t_comb_speeds, x_gt_comb_list, shape_data_list, 0, 3, 0, shape)
     error_y_4dof_list = compute_error(t_comb_speeds, y_gt_comb_list, shape_data_list, 0, 4, 0, shape)
     error_rot_4dof_list = compute_error(t_comb_speeds, rot_gt_comb_list, shape_data_list, 0, 5, 0, shape)
@@ -351,7 +450,6 @@ for idx_shape, shape in enumerate(shape_names):
     error_dist_4dof_all_speeds = np.concatenate((error_dist_4dof_list[0], error_dist_4dof_list[1], error_dist_4dof_list[2], error_dist_4dof_list[3], error_dist_4dof_list[4], error_dist_4dof_list[5]))
     error_rot_4dof_all_speeds = np.concatenate((error_rot_4dof_list[0], error_rot_4dof_list[1], error_rot_4dof_list[2], error_rot_4dof_list[3], error_rot_4dof_list[4], error_rot_4dof_list[5]))
     error_sc_4dof_all_speeds = np.concatenate((error_sc_4dof_list[0], error_sc_4dof_list[1], error_sc_4dof_list[2], error_sc_4dof_list[3], error_sc_4dof_list[4], error_sc_4dof_list[5]))
-
 
     error_x_trans_x_list = compute_error(t_trans_x_list,gt_trans_x_list,shape_data_list,18,3,32.51/2, shape)
     error_y_trans_x_list = compute_error(t_trans_x_list,ground_truth_trans_x_y,shape_data_list,18,4,0, shape)
@@ -376,6 +474,10 @@ for idx_shape, shape in enumerate(shape_names):
     if error_sc_trans_x_list != []:
         error_sc_trans_x_all_speeds = np.concatenate((error_sc_trans_x_list[0], error_sc_trans_x_list[1], error_sc_trans_x_list[2], error_sc_trans_x_list[3], error_sc_trans_x_list[4], error_sc_trans_x_list[5]))
 
+    if shape == "star":
+
+        error_x_trans_x_list_pix = compute_error_partial(t_trans_x_list_pix,gt_trans_x_list_pix,ground_truth_trans_x_y_monitor, shape_data_list_pix[18:24], shape_data_list_pix[18:24], shape_data_list_pix[18:24], H_list[18:24] )
+        print("error event camera open loop star trans x "+ str(error_x_trans_x_list_pix)+" pix")
 
     error_y_trans_y_list = compute_error(t_trans_y_list,gt_trans_y_list,shape_data_list,24,4,18.29/2, shape)
     error_x_trans_y_list = compute_error(t_trans_y_list,ground_truth_trans_y_x,shape_data_list,24,3,0, shape)
