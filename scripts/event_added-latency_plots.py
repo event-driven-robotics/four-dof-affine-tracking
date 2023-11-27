@@ -189,20 +189,20 @@ plt.title("Target speed = 4000 pix/s and Kp = 0.005")
 
 fig, ax1 = plt.subplots(figsize=(15, 8))
 # ax2 = ax1.twinx()
-ax1.plot(latencies_240[0:9], mean_error_240[0:9], color='tab:purple', label='240 px/s')
+ax1.plot(latencies_240[0:9], mean_error_240[0:9], color='tab:purple', label='V1')
 plt.fill_between(latencies_240[0:9], diff_std_240, sum_std_240, alpha=0.15, color="tab:purple")
 ax1.plot(latencies_240[9:11], mean_error_240[9:11], color='white')
 
-ax1.plot(latencies_240[0:9], mean_error_480[0:9], color='tab:orange', label='480 px/s')
+ax1.plot(latencies_240[0:9], mean_error_480[0:9], color='tab:orange', label='V2')
 plt.fill_between(latencies_240[0:9], diff_std_480, sum_std_480, alpha=0.15, color="tab:orange")
 ax1.plot(latencies_240[9:11], mean_error_480[9:11], color='white')
 
-ax1.plot(latencies_240[0:3], mean_error_720[0:3], color='tab:red', label='720 px/s')
+ax1.plot(latencies_240[0:3], mean_error_720[0:3], color='tab:red', label='V3')
 plt.fill_between(latencies_240[0:3], diff_std_720, sum_std_720, alpha=0.15, color="tab:red")
 ax1.plot(latencies_240[3:4], mean_error_720[3:4], color='white')
 ax1.plot(latencies_240[6:11], mean_error_720[6:11], color='white')
 
-ax1.plot(latencies_240[0:2], mean_error_960[0:2], color='tab:green', label='960 px/s')
+ax1.plot(latencies_240[0:2], mean_error_960[0:2], color='tab:green', label='V4')
 plt.fill_between(latencies_240[0:2], diff_std_960, sum_std_960, alpha=0.15, color="tab:green")
 ax1.plot(latencies_240[2:4], mean_error_960[2:4], color='white')
 ax1.plot(latencies_240[6:11], mean_error_960[6:11], color='white')
@@ -214,6 +214,7 @@ ax1.scatter(8, mean_error_480[8], s=100,marker='x',color='tab:orange',linewidths
 ax1.scatter(2, mean_error_720[2], s=100,marker='x',color='tab:red',linewidths=2)
 ax1.scatter(1, mean_error_960[1], s=100,marker='x',color='tab:green',linewidths=2)
 
+ax1.axvline(x = 7, color='k', ls = '--', label='real-sense\nlatency')
 
 # ax2.scatter(9,time_to_failure_240[9], s=100,marker='x',color='tab:purple',linewidths=2)
 # ax2.scatter(10,time_to_failure_240[10], s=100,marker='x',color='tab:purple',linewidths=2)
