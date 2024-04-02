@@ -29,7 +29,7 @@ If you use any of this code, please cite the following publication:
 ## ⚙ Build
 Build the docker using:
 ```
-cd affine2dtracking
+cd four-dof-affine-tracking
 docker build -t affine:latest - < Dockerfile
 ```
 
@@ -51,11 +51,27 @@ make install
 ```
 
 ## ▶ Run
+The algorithm works under [YARP](https://github.com/robotology/yarp) middleware. 
+
+Run the server, typing on the terminal.
+```
+yarpserver
+```
+Load the event-driven dataset sample of the moving shape, by using the GUI opened after typing on the terminal:
+```
+yarpdataplayer
+```
+Follow _File>Open directory>Select_ and select the folder inside /usr/local/src/four-dof-affine-tracking/sample-dataset, containing data.log and info.log files. It should upload the data. 
+
 Run the algorithm:
 ```
-shape_position --eros_k 11 --eros_d 0.6 --shape_file /usr/local/src/affine2dtracking/shapes/star.png 
+shape_position --eros_k 11 --eros_d 0.6 --shape_file /usr/local/src/four-dof-affine-tracking/shapes/star.png 
 ```
+A picture should pop up showing the star template. 
 
+Click the play button on yarpdataplayer to stream the events on the YARP port. It should show the EROS events in the picture.
+
+Press 'g' on the picture to start tracking when the moving shape overlaps the template in the middle of the image.
 
 
 
