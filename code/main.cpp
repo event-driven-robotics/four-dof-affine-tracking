@@ -97,7 +97,7 @@ public:
             period = 0.001; 
         tau_latency=rf.check("tau", Value(0.0)).asFloat64();
         recording_duration = rf.check("rec_time", Value(10)).asFloat64();
-        filename = rf.check("shape-file", Value("/usr/local/src/affine2dtracking/shapes/star.png")).asString(); 
+        filename = rf.check("shape-file", Value("/usr/local/src/four-dof-affine-tracking/shapes/star.png")).asString(); 
 
         // module name
         setName((rf.check("name", Value("/shape-position")).asString()).c_str());
@@ -355,7 +355,7 @@ int main(int argc, char *argv[]) {
     /* prepare and configure the resource finder */
     yarp::os::ResourceFinder rf;
     rf.setDefaultContext("event-driven");
-    rf.setDefaultConfigFile("/usr/local/src/affine2dtracking/code/config.ini");
+    rf.setDefaultConfigFile("/usr/local/src/four-dof-affine-tracking/code/config.ini");
     rf.setVerbose(false);
     rf.configure(argc, argv);
 
