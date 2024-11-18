@@ -18,7 +18,8 @@ private:
     double tau_latency{0};
     double dT{0}; 
     double recording_duration, elapsed_time{0}; 
-    double translation{1}, angle{0.5}, pscale{1.0001}, nscale{0.9999};
+    double translation{2}, angle{0.1}, pscale{1.000005}, nscale{0.965};//    double translation{2}, angle{0.1}, pscale{1.0000005}, nscale{0.965};
+    // double translation{2}, angle{2}, pscale{1.000005}, nscale{0.9};
     bool run{false};
     double dt_warpings{0}, dt_comparison{0}, dt_eros{0}, toc_count{0};
     std::string filename; 
@@ -89,15 +90,15 @@ public:
     {
         // options and parameters
     
-        eros_k = rf.check("eros_k", Value(7)).asInt32();
-        eros_d = rf.check("eros_d", Value(0.6)).asFloat64();
+        eros_k = rf.check("eros_k", Value(11)).asInt32();
+        eros_d = rf.check("eros_d", Value(0.5)).asFloat64();
         if(!gt_sending)
             period = rf.check("period", Value(0.01)).asFloat64();
         else
             period = 0.001; 
         tau_latency=rf.check("tau", Value(0.0)).asFloat64();
-        recording_duration = rf.check("rec_time", Value(10)).asFloat64();
-        filename = rf.check("shape-file", Value("/usr/local/src/four-dof-affine-tracking/shapes/star.png")).asString(); 
+        recording_duration = rf.check("rec_time", Value(1000)).asFloat64();
+        filename = rf.check("shape-file", Value("/home/luna/code/four-dof-affine-tracking/shapes/mustard_pic-removebg2.png")).asString(); 
 
         // module name
         setName((rf.check("name", Value("/shape-position")).asString()).c_str());
@@ -207,7 +208,9 @@ public:
                 // cv::circle(eros_handler.eros.getSurface(), affine_handler.new_position, 2, 255, -1);
                 // cv::rectangle(eros_handler.eros.getSurface(), affine_handler.roi_around_shape, 255,1,8,0);
                 // imshow("EROS RESIZE", affine_handler.eros_resized);
-                imshow("EROS FULL", affine_handler.eros_filtered+affine_handler.rot_scaled_tr_template);
+                // yInfo()<<eros_handler.eros.getSurface().rows<<eros_handler.eros.getSurface().cols<<affine_handler.rot_scaled_tr_template.rows<<affine_handler.rot_scaled_tr_template.cols; 
+                if (affine_handler.eros_filtered.rows != 0)
+                    imshow("EROS FULL",  affine_handler.eros_filtered + affine_handler.rot_scaled_tr_template);
                 // imwrite("/usr/local/src/affine2dtracking/results/eros_images/"+std::to_string(count)+".jpg",eros_handler.eros.getSurface()); 
 
                 // if (affine_handler.concat_affines.rows!=0 && affine_handler.concat_affines.cols!=0){
@@ -259,8 +262,10 @@ public:
             // if ((eros_handler.dt)>0.2&& !run){
             //     run = true; 
             // }
-
+            // yInfo() << eros_handler.dt; 
             if (run){
+
+                // run = true; 
 
                 // yInfo()<<"run start";
                 dT = yarp::os::Time::now() - tic;
@@ -355,7 +360,7 @@ int main(int argc, char *argv[]) {
     /* prepare and configure the resource finder */
     yarp::os::ResourceFinder rf;
     rf.setDefaultContext("event-driven");
-    rf.setDefaultConfigFile("/usr/local/src/four-dof-affine-tracking/code/config.ini");
+    rf.setDefaultConfigFile("/home/luna/code/four-dof-affine-tracking/code/config.ini");
     rf.setVerbose(false);
     rf.configure(argc, argv);
 

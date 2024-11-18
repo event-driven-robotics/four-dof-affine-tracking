@@ -33,12 +33,13 @@ public:
             packet_events = my_info.count; 
             events_inside_roi = 0; 
             for(auto &v : input_port){
-                if((v.x) > eros_update_roi.x && (v.x) < eros_update_roi.x + eros_update_roi.width && (v.y) > eros_update_roi.y && (v.y) < eros_update_roi.y + eros_update_roi.height){
+                // v.y = 480 - v.y;
+                // if((v.x) > eros_update_roi.x && (v.x) < eros_update_roi.x + eros_update_roi.width && (v.y) > eros_update_roi.y && (v.y) < eros_update_roi.y + eros_update_roi.height){
                     // if (filter.check(v.x, v.y, v.p, my_info.timestamp)){
                         eros.update(v.x, v.y);
-                        events_inside_roi++; 
+                        //events_inside_roi++; 
                     // }
-                }
+                //}
             }
             n_events_eros_update = events_inside_roi;
             dt_not_read_events = input_port.stats_unprocessed().duration;

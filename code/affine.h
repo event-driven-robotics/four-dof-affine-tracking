@@ -34,20 +34,20 @@ public:
     double translation, angle, pscale, nscale;
     cv::Point2d initial_position, new_position;
     cv::Point2d new_center; 
-    int blur{11};
-    int gaussian_blur_eros{1}; 
-    double template_scale{0.4}; //0.4, 0.33
-    double sc_factor{0.8}; 
+    int blur{13};
+    int gaussian_blur_eros{5}; 
+    double template_scale{0.65}; //0.85 mustard 0.4, 0.33
+    double sc_factor{0.7}; 
     int shape_blur_val{7};
     int buffer_width; 
-    int canny1{100}; 
-    int canny2{300};
+    int canny1{20}; //20 mustard
+    int canny2{60};//60 mustard
     int sobel_value{3};
     double median_blur_eros{3}; 
     bool median_blur_active{true}; 
     bool dynamic_scale{false};
 
-    cv::Size proc_size{cv::Size(80, 80)};
+    cv::Size proc_size{cv::Size(100, 100)};
     cv::Rect proc_roi, o_proc_roi; 
     cv::Mat prmx, prmy, nrmx, nrmy;
     
@@ -228,13 +228,14 @@ public:
 
         cv::Mat shape_image = cv::imread(filename, 0);
         // shape_image.convertTo(shape_image, CV_32F);
+        cv::Mat shape_image_resized; 
 
-        cv::resize(shape_image, shape_image, cv::Size(template_scale*shape_image.cols, template_scale*shape_image.rows), 0, 0,  cv::INTER_LINEAR); 
+        cv::resize(shape_image, shape_image_resized, cv::Size(template_scale*shape_image.cols, template_scale*shape_image.rows), 0, 0,  cv::INTER_CUBIC); 
 
         // yInfo()<<template_scale*shape_image.cols<< template_scale*shape_image.rows;
 
         static cv::Mat shape_blur;
-        cv::GaussianBlur(shape_image, shape_blur, cv::Size(shape_blur_val,shape_blur_val),0,0);
+        cv::GaussianBlur(shape_image_resized, shape_blur, cv::Size(shape_blur_val,shape_blur_val),0,0);
 
         // cv::Mat sobelxy;
         // cv::Sobel(shape_blur, sobelxy, CV_64F, 1, 1, 5);
@@ -247,7 +248,7 @@ public:
         initial_position.x = res.width/2;
         initial_position.y = res.height/2;
 
-        cv::Rect mask = cv::Rect(initial_position.x - shape_image.cols/2, initial_position.y - shape_image.rows/2, shape_image.cols, shape_image.rows); 
+        cv::Rect mask = cv::Rect(initial_position.x - shape_image_resized.cols/2, initial_position.y - shape_image_resized.rows/2, shape_image_resized.cols, shape_image_resized.rows); 
 
         edges.copyTo(initial_template(mask)); 
 
@@ -398,6 +399,8 @@ public:
         if (median_blur_active){
             cv::Mat eros_blurred1; 
             cv::medianBlur(eros, eros_blurred1, median_blur_eros);
+            eros_blurred1 *= 5;
+            //cv::normalize(eros_blurred1, eros_blurred1, 0, 255, cv::NORM_MINMAX);
             cv::GaussianBlur(eros_blurred1, eros_filtered, cv::Size(gaussian_blur_eros, gaussian_blur_eros), 0);
         }
         else{
@@ -409,7 +412,7 @@ public:
 
         // yInfo()<<"eros sizes="<<eros_tracked.cols<<eros_tracked.rows; 
 
-        cv::resize(eros_tracked_64f, eros_resized(o_proc_roi), o_proc_roi.size(), 0, 0, cv::INTER_LINEAR);
+        cv::resize(eros_tracked_64f, eros_resized(o_proc_roi), o_proc_roi.size(), 0, 0, cv::INTER_CUBIC);
     }
 
     double similarity_score(const cv::Mat &observation, const cv::Mat &expectation) {

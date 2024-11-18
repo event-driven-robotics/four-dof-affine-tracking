@@ -8,7 +8,7 @@ if(NOT CMAKE_BUILD_TYPE)
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY VALUE "Release")
 endif()
 
-#include(GNUInstallDirs)
+include(GNUInstallDirs)
 
 # mandatory use of these packages
 find_package(YCM REQUIRED)
@@ -18,11 +18,12 @@ find_package(event-driven REQUIRED)
 
 yarp_add_idl(ROS_MSG SharedData.msg)
 
-# add_executable(${PROJECT_NAME} analysis.cpp)
-add_executable(${PROJECT_NAME} main.cpp eros.h affine.h ROScommunication.h ${ROS_MSG})
+# add_executable(${PROJECT_NAME} analysis.cpp eros.h affine.h)
+add_executable(${PROJECT_NAME} main.cpp eros.h affine.h ROScommunication.h)
+# add_executable(${PROJECT_NAME} main.cpp eros.h affine.h ROScommunication.h ${ROS_MSG})
 add_executable(stimulus movingShapes.cpp)
 
-target_link_libraries(stimulus PRIVATE YARP::YARP_OS
+target_link_libraries(${PROJECT_NAME} PRIVATE YARP::YARP_OS
         YARP::YARP_init
         YARP::YARP_sig
         YARP::YARP_dev
@@ -30,7 +31,7 @@ target_link_libraries(stimulus PRIVATE YARP::YARP_OS
         ev::event-driven
         ${OpenCV_LIBRARIES})
 
-target_link_libraries(${PROJECT_NAME} PRIVATE YARP::YARP_OS
+target_link_libraries(stimulus PRIVATE YARP::YARP_OS
         YARP::YARP_init
         YARP::YARP_sig
         YARP::YARP_dev
