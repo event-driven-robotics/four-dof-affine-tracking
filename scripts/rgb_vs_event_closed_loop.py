@@ -93,8 +93,8 @@ rgb_std_error_list = []
 event_error_list = []
 event_std_error_list = []
 
-rgb_exp1_path = "/usr/local/src/affine2dtracking/bag_files/rgb_same_gain"
-event_exp1_path = "/usr/local/src/affine2dtracking/bag_files/event_same_gain"
+rgb_exp1_path = "/home/luna/code/four-dof-affine-tracking/bag_files/rgb_same_gain"
+event_exp1_path = "/home/luna/code/four-dof-affine-tracking/bag_files/event_same_gain"
 
 
 for f in os.listdir(event_exp1_path):
@@ -439,33 +439,33 @@ rgb_mean_errors_target_speed_open_loop = [29.426525004815947, 29.884591665296284
 event_mean_errors_target_speed_open_loop = [4.8760896976188315, 6.252573943226012, 2.870520644215381, 2.437671783194352, 5.33733222205386, 3.941424425527976]
 
 fig, ax1 = plt.subplots(figsize=(15, 8))
-ax2 = ax1.twinx()
-ax1.plot(speeds[0:3], rgb_mean_errors_target_speed[0:3], linestyle='-', color='tab:orange', label='real-sense (closed-loop)')
+# ax2 = ax1.twinx()
+ax1.plot(speeds[0:3], rgb_mean_errors_target_speed[0:3], linestyle='-', color='tab:orange', label='real-sense')
 ax1.fill_between(speeds[0:3], diff_rgb_std, sum_rgb_std, alpha=0.2, color="tab:orange")
-ax1.plot(speeds, event_mean_errors_target_speed, linestyle='-', label='event-camera (closed-loop)')
+ax1.plot(speeds, event_mean_errors_target_speed, linestyle='-', label='event-camera')
 ax1.fill_between(speeds, diff_event_std, sum_event_std, alpha=0.2, color="tab:blue")
-ax2.plot(speeds, event_mean_errors_target_speed_open_loop, color='tab:blue',linestyle='--', alpha = 0.5, label='event-camera (open-loop)')
-ax2.plot(speeds, rgb_mean_errors_target_speed_open_loop, color='tab:orange', linestyle='--', alpha = 0.5, label='real-sense (open-loop)')
+# ax2.plot(speeds, event_mean_errors_target_speed_open_loop, color='tab:blue',linestyle='--', alpha = 0.5, label='event-camera (open-loop)')
+# ax2.plot(speeds, rgb_mean_errors_target_speed_open_loop, color='tab:orange', linestyle='--', alpha = 0.5, label='real-sense (open-loop)')
 ax1.scatter(2, rgb_mean_errors_target_speed[2], s=100,marker='x',color='tab:orange',linewidths=2)
 # plt.scatter(4,rgb_mean_errors_target_speed[2], s=100,marker='x',color='tab:orange',linewidths=2)
 # plt.scatter(5,rgb_mean_errors_target_speed[2], s=100,marker='x',color='tab:orange',linewidths=2)
 # plt.scatter(4,rgb_mean_errors_target_speed[4], s=100,marker='x',color='tab:orange',linewidths=2)
 # plt.scatter(5,rgb_mean_errors_target_speed[5], s=100,marker='x',color='tab:orange',linewidths=2)
 ax1.set_ylabel("Mean error [px]\n wrt reference")
-ax2.set_ylabel("Mean error [px]\n wrt ground truth")
+# ax2.set_ylabel("Mean error [px]\n wrt ground truth")
 ax1.set_xlabel("Target speed")
 ax1.set_ylim(0, 100)
-ax2.set_ylim(0, 100)
+# ax2.set_ylim(0, 100)
 # plt.title("Kp = 0.005")
 ax1.legend( loc='upper left')
-ax2.legend( loc='upper right')
+# ax2.legend( loc='upper right')
 plt.show()
 
 ############################### RGB same target speed different gains #######################################################
 
 # FILTER 0.005
 
-rgb_exp2_path = "/usr/local/src/affine2dtracking/bag_files/rgb_diff_gains"
+rgb_exp2_path = "/home/luna/code/four-dof-affine-tracking/bag_files/rgb_diff_gains"
 
 directories_list_2 = []
 rgb_mean_error_gains = []
@@ -531,7 +531,7 @@ for d in sorted_dir_2:
 
 # FILTER 0.002
 
-rgb_exp2_path_2 = "/usr/local/src/affine2dtracking/bag_files/rgb-camera-gains"
+rgb_exp2_path_2 = "/home/luna/code/four-dof-affine-tracking/bag_files/rgb-camera-gains"
 
 directories_list_2 = []
 rgb_mean_error_gains_2 = []
@@ -614,7 +614,7 @@ for d in sorted_dir_3:
 
 # EVENT CAMERA DIFF GAINS (CLEANING)
 
-event_exp2_path = "/usr/local/src/affine2dtracking/bag_files/event-camera-diff-gains"
+event_exp2_path = "/home/luna/code/four-dof-affine-tracking/bag_files/event-camera-diff-gains"
 
 directories_list_3 = []
 event_mean_error_gains = []
@@ -769,6 +769,10 @@ for i in range(6):
 
     u_list.append(u_gt)
     v_list.append(v_gt)
+
+print("Robot operational speed=")
+np.seterr(divide='ignore', invalid='ignore')
+print(np.nanmean(abs(np.divide((high_event_ee_pose-high_event_ee_pose[0]),high_event_ee_time))))
 
 fig, ax1 = plt.subplots(3,1, figsize=(15, 8))
 ax2 = ax1[0].twinx()
