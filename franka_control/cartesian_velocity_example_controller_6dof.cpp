@@ -18,20 +18,22 @@
 #include <Eigen/Geometry>
 
 namespace franka_example_controllers {
-ros::Subscriber sub_;
+ros::Subscriber sub_, sub2_;
 ros::Publisher pub_, pub2_;
 void sharedDataCallback (const sharedmessage::ConstPtr &msg);
-double x_object, y_object, z_object, roll_object, pitch_object, yaw_object;
-double qx_object, qy_object, qz_object, qw_object;
-double v_y_filtered = 0;
-double v_x_filtered = 0;
-double v_z_filtered = 0;
-double v_yaw_filtered = 0;
+double x_object{0}, y_object{0}, z_object{0.51}, roll_object, pitch_object, yaw_object;
+double qx_object{1}, qy_object{0}, qz_object{0}, qw_object{0};
+double vy_filtered = 0;
+double vx_filtered = 0;
+double vz_filtered = 0;
+double wx_filtered = 0;
+double wy_filtered = 0;
+double wz_filtered = 0;
 std::unique_ptr< franka_hw::FrankaStateHandle > state_handle_;
 Eigen::Matrix4d Tref;
 Eigen::Matrix4d Tcam_ee;
 
-Eigen::Matrix4d buildReferenceTransform(double z_des = 0.3) {
+Eigen::Matrix4d buildReferenceTransform(double z_des = 0.51) {
     Eigen::Matrix4d Tstar = Eigen::Matrix4d::Identity();
     Tstar(0,3) = 0.0;   // x
     Tstar(1,3) = 0.0;   // y
@@ -71,6 +73,20 @@ void sharedDataCallback (const sharedmessage::ConstPtr &msg)
 // {
 //   ROS_INFO("x: [%.2f]", msg.position.x);
 // }
+
+void trackingCallback(const std_msgs::Float64MultiArray::ConstPtr& msg)
+{
+
+  x_object = msg->data[0];
+  y_object = msg->data[1];
+  z_object =  msg->data[2];
+  qx_object = msg->data[3];
+  qy_object = msg->data[4];
+  qz_object = msg->data[5];
+  qw_object = msg->data[6];
+
+
+}
 
 // Converts position + quaternion to 4x4 homogeneous transform
 Eigen::Matrix4d poseToTransform_quaternion(
@@ -147,6 +163,38 @@ Eigen::Vector3d so3Log(const Eigen::Matrix3d& R) {
 }
 
 // PBVS with separate translation & rotation error
+Eigen::Matrix<double,6,1> computePBVS_EE(
+        const Eigen::Matrix4d& T_desired,
+        const Eigen::Matrix4d& T_current,
+        const Eigen::Matrix4d& T_root_ee,
+        const Eigen::Matrix4d& T_ee_cam,
+        double Kt = 0.8, double Kr = 0.5)
+{
+
+    //calculate the desired end effector transform
+    Eigen::Matrix4d T_error_EE;
+    T_error_EE = (T_ee_cam*T_current)*(T_ee_cam*T_desired).inverse();
+
+    //rotation is controlled in EE reference frame
+    Eigen::Matrix3d R_ee = T_error_EE.block<3,3>(0,0);
+    Eigen::Vector3d e_r_ee = so3Log(R_ee);
+
+    //translation is controlled in root reference frame
+    //but we need to rotate the translation vector only
+
+    //T_root_ee.block<3,1>(0,3) << 0, 0, 0; //FIX THIS!!!
+
+    Eigen::Matrix4d T_error_root = T_root_ee*T_error_EE;
+    Eigen::Vector3d p_root = T_error_root.block<3,1>(0,3);
+
+    // Apply separate gains
+    Eigen::Matrix<double,6,1> xi;
+    xi.segment<3>(0) = Kt * p_root; // linear velocity
+    //xi.segment<3>(3) = Kr * e_r_root; // angular velocity
+    return xi;
+}
+
+// PBVS with separate translation & rotation error
 Eigen::Matrix<double,6,1> computePBVS_separate(
         const Eigen::Matrix4d& T_desired,
         const Eigen::Matrix4d& T_current,
@@ -178,9 +226,9 @@ Eigen::Matrix<double,6,1> computePBVS_separate(
 
     Eigen::Matrix4d T_error_root = T_root_ee*T_error_cam;
 
-    std::cout << "T_error_root" << std::endl <<T_error_root << std::endl << std::endl;
-    std::cout << "T_error_cam" << std::endl <<T_error_cam << std::endl << std::endl;
-    std::cout << "T_root_ee" << std::endl <<T_root_ee << std::endl << std::endl;
+    // std::cout << "T_error_root" << std::endl <<T_error_root << std::endl << std::endl;
+    // std::cout << "T_error_cam" << std::endl <<T_error_cam << std::endl << std::endl;
+    // std::cout << "T_root_ee" << std::endl <<T_root_ee << std::endl << std::endl;
 
     Eigen::Vector3d p_root = T_error_root.block<3,1>(0,3);
     Eigen::Matrix3d R_root = T_error_root.block<3,3>(0,0);
@@ -192,7 +240,7 @@ Eigen::Matrix<double,6,1> computePBVS_separate(
     // Apply separate gains
     Eigen::Matrix<double,6,1> xi;
     xi.segment<3>(0) = Kt * p_root; // linear velocity
-    xi.segment<3>(3) = Kr * e_r_root; // angular velocity
+    // xi.segment<3>(3) = Kr * e_r_root; // angular velocity
     return xi;
 }
 
@@ -266,6 +314,7 @@ bool CartesianVelocityExampleController::init(hardware_interface::RobotHW* robot
   Tref = buildReferenceTransform(0.3);
 
   sub_ = node_handle.subscribe("/foo2/sharedmessage", 1, sharedDataCallback);
+  sub2_ = node_handle.subscribe("/franka/sharedmessage", 1, trackingCallback);
   pub_ = node_handle.advertise<geometry_msgs::Pose>("/ee_pose", 1);
   pub2_ = node_handle.advertise<std_msgs::Float64MultiArray>("/errors_and_velocities", 1);
 
@@ -285,6 +334,7 @@ bool CartesianVelocityExampleController::init(hardware_interface::RobotHW* robot
   //   Eigen::Matrix4d Tobject = poseToTransform_quaternion(0, 0, 0.5, 0, sin(x*0.5), 0, cos(x*0.5));
 
   //   Eigen::Matrix<double,6,1> v = computePBVS_separate(Tref, Tobject, Tee_root_init, lambda_t, lambda_r);
+  //   Eigen::Matrix<double,6,1> v = computePBVS_EE(Tref, Tobject, Tee_root_init, lambda_t, lambda_r);
 
   //   std::cout << "x = " << x << std::endl;
   //   std::cout << "T = " << Tobject << std::endl<<std::endl;
@@ -298,6 +348,9 @@ bool CartesianVelocityExampleController::init(hardware_interface::RobotHW* robot
 
   return true;
 }
+
+
+
 
 void CartesianVelocityExampleController::update(const ros::Time& /* time */,
                                                 const ros::Duration& period) {
@@ -322,7 +375,7 @@ void CartesianVelocityExampleController::update(const ros::Time& /* time */,
   // double Kv_yaw = 1.2;
 
 
-  double lambda_t = 0.8;
+  double lambda_t = 0.01;
   double lambda_r = 0.0;
 
   franka::RobotState robot_state = state_handle_->getRobotState();
@@ -335,6 +388,8 @@ void CartesianVelocityExampleController::update(const ros::Time& /* time */,
   //std::cout << "T_root_ee="<<T_root_ee << std::endl;
 
   //std::cout << "T_root_cam="<<T_root_cam << std::endl;
+
+  std::cout << "X="<<x_object << " "<<y_object<<" "<<z_object<<" "<<qx_object << " "<<qy_object<< " "<< qz_object << " "<<qw_object <<std::endl;
 
   Eigen::Matrix4d Tobject = poseToTransform_quaternion(x_object, y_object, z_object, qx_object, qy_object, qz_object, qw_object);
   // Eigen::Matrix4d Tobject = poseToTransform_quaternion(0.01, 0, 0.3, 1, 0, 0, 0);
@@ -349,9 +404,18 @@ void CartesianVelocityExampleController::update(const ros::Time& /* time */,
   double wz = v(5);   // angular z
 
 
-  std::cout << "v="<<v<<std::endl;
+  std::cout << "v = "<<v<<std::endl;
 
-  std::array<double, 6> command = {{vx, vy, vz, wx, wy, wz}};
+  double filter = 0.01;//.7; // 0.005
+
+  vx_filtered =  filter*vx +(1-filter)*vx_filtered;
+  vy_filtered =  filter*vy +(1-filter)*vy_filtered;
+  vz_filtered =  filter*vz +(1-filter)*vz_filtered;
+  wx_filtered =  filter*wx +(1-filter)*wx_filtered;
+  wy_filtered =  filter*wy +(1-filter)*wy_filtered;
+  wz_filtered =  filter*wz +(1-filter)*wz_filtered;
+
+  std::array<double, 6> command = {{vx_filtered, vy_filtered, vz_filtered, wx_filtered, wy_filtered, wz_filtered}};
   // std::array<double, 6> command = {{vz, -vx, -vy, wz, -wx, -wy}};
   velocity_cartesian_handle_->setCommand(command);
 
