@@ -99,11 +99,11 @@ public:
         shape_w = rf.check("shape_w", Value(300)).asInt64();
         shape_h = rf.check("shape_h", Value(300)).asInt64();
         perc = rf.check("perc", Value(0.2)).asFloat64();
-        background_filename = rf.check("shape-file", Value("/usr/local/src/affine2dtracking/desk_background.jpg")).asString(); 
-        shape_filename = rf.check("background-file", Value("/usr/local/src/affine2dtracking/shapes/star.png")).asString(); 
-        output_filepath = rf.check("output-path", Value("/data/star_filled/combined_motions")).asString(); 
+        background_filename = rf.check("background-file", Value("/usr/local/src/four-dof-affine-tracking/backgrounds/desk_background.jpg")).asString(); 
+        shape_filename = rf.check("shape-file", Value("/usr/local/src/four-dof-affine-tracking/shapes/mustard.png")).asString(); 
+        output_filepath = rf.check("output-path", Value("/home/lgava-iit.local/data/hexagon/frames_static")).asString(); 
         motion_type = rf.check("motion", Value(5)).asInt32();  // 1-> tx, 2-> ty, 3-> rot, 4-> scale, 5-> combined
-        background_dynamic = rf.check("back_dynamic", Value(true)).asBool(); 
+        background_dynamic = rf.check("back_dynamic", Value(false)).asBool(); 
         sinusoid = rf.check("sin", Value(false)).asBool(); 
 
         // module name
