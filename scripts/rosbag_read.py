@@ -26,7 +26,7 @@ matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 plt.style.use(params)
 
-bag_path = "/usr/local/src/affine2dtracking/bag_files/rgb-camera-gains/"
+bag_path = "/data/cheezit"
 bag_files = sorted([file for file in os.listdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), bag_path)) if file.endswith('.bag')])
 bag_data_list = []
 
@@ -37,8 +37,8 @@ for bag_name in tqdm(bag_files, "Loading bag data"):
     ttracking = "/errors_and_velocities"
     end_effector = b.message_by_topic(tee)
     tracking = b.message_by_topic(ttracking)
-    # ee_pose_data = pd.read_csv(end_effector)
-    # tracking_data = pd.read_csv(tracking)
+    ee_pose_data = pd.read_csv(end_effector)
+    tracking_data = pd.read_csv(tracking)
 
     # index_start = next(x for x, val in enumerate(tracking_data['data_0']) if val > 0)
     # ee_pose_data = ee_pose_data[index_start:-1]
